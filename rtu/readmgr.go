@@ -97,14 +97,12 @@ loop:
 				}
 			}
 			data <- readResult{}
-			if dest == nil {
-				break
+			if dest != nil {
+				select {
+				case m.done <- readResult{dest, r.err}:
+				case dest = <-m.req:
+				}
 			}
-			select {
-			case m.done <- readResult{dest, r.err}:
-			case dest = <-m.req:
-			}
-
 			if r.err != nil {
 				break loop
 			}
