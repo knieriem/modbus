@@ -21,6 +21,7 @@ type Mode struct {
 	h hash.Hash16
 
 	InterframeTimeout time.Duration
+	OnReceiveError    func(*Mode, error)
 }
 
 func NewTransmissionMode(conn io.ReadWriter) (m *Mode) {
@@ -70,6 +71,13 @@ func (m *Mode) Send() (buf []byte, err error) {
 }
 
 func (m *Mode) Receive(tMax time.Duration) (buf, msg []byte, err error) {
+	if f := m.OnReceiveError; f != nil {
+		defer func() {
+			if err != nil {
+				f(m, err)
+			}
+		}()
+	}
 	buf, err = m.readMgr.Read(tMax, m.InterframeTimeout)
 	if err != nil {
 		return
