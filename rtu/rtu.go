@@ -80,9 +80,11 @@ func (m *Mode) Receive(tMax time.Duration) (buf, msg []byte, err error) {
 		return
 	}
 	if crc16.Checksum(buf, crcTab) != 0 {
-		err = errors.New("CRC error")
+		err = ErrCRC
 		return
 	}
 	msg = buf[:n-2]
 	return
 }
+
+var ErrCRC = errors.New("CRC error")
