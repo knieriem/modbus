@@ -48,7 +48,7 @@ type TransmissionMode interface {
 	Name() string
 	MsgWriter() io.Writer
 	Send() ([]byte, error)
-	Receive(timeout time.Duration) (buf, msg []byte, err error)
+	Receive(timeout time.Duration, verifyLen func(int) error) (buf, msg []byte, err error)
 }
 
 type Stack struct {
@@ -68,10 +68,13 @@ func NewStack(mode TransmissionMode) (stk *Stack) {
 }
 
 var ErrTimeout = errors.New("timeout")
-var ErrCorruptMsgLen = errors.New("corrupt message length")
+var ErrCorruptMsgLen = errors.New("corrupt msg length")
+var ErrInvalidMsgLen = errors.New("invalid msg length")
 var ErrMsgTooShort = errors.New("msg too short")
+var ErrMsgTooLong = errors.New("msg too long")
+var ErrCRC = errors.New("CRC error")
 
-func (stk *Stack) Request(addr, fn uint8, req Request, resp Response) (err error) {
+func (stk *Stack) Request(addr, fn uint8, req Request, resp Response, expectedLengths []int) (err error) {
 	w := stk.mode.MsgWriter()
 
 	w.Write([]byte{addr, fn})
@@ -95,7 +98,10 @@ func (stk *Stack) Request(addr, fn uint8, req Request, resp Response) (err error
 		return
 	}
 
-	buf, msg, err := stk.mode.Receive(stk.ResponseTimeout)
+	verifyRespLen := func(n int) error {
+		return verifyMsgLength(n, expectedLengths)
+	}
+	buf, msg, err := stk.mode.Receive(stk.ResponseTimeout, verifyRespLen)
 	if stk.Tracef != nil {
 		if err != nil {
 			stk.Tracef("-> %s % x error: %v\n", stk.mode.Name(), buf, err)
@@ -104,6 +110,10 @@ func (stk *Stack) Request(addr, fn uint8, req Request, resp Response) (err error
 			stk.Tracef("-> %s % x\n", stk.mode.Name(), buf)
 		}
 	}
+	if err != nil {
+		return
+	}
+	err = verifyRespLen(len(msg) - 2)
 	if err != nil {
 		return
 	}
@@ -128,6 +138,46 @@ func (stk *Stack) Request(addr, fn uint8, req Request, resp Response) (err error
 		err = resp.Decode(msg)
 	}
 	return
+}
+
+func verifyMsgLength(n int, valid []int) (err error) {
+	if valid == nil {
+		return
+	}
+	if n == 1 {
+		return // might be an error response
+	}
+	max := 0
+	for i, l := range valid {
+		if i > 0 && l == 0 {
+			return // any length allowed
+		}
+		if l == n {
+			return
+		}
+		if l > max {
+			max = l
+		}
+	}
+	if n > max {
+		err = ErrMsgTooLong
+	} else {
+		err = ErrInvalidMsgLen
+	}
+	return
+}
+
+func MsgInvalid(err error) bool {
+	switch err {
+	default:
+		return false
+	case ErrMsgTooShort:
+	case ErrMsgTooLong:
+	case ErrCorruptMsgLen:
+	case ErrInvalidMsgLen:
+	case ErrCRC:
+	}
+	return true
 }
 
 type Request interface {

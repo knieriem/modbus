@@ -2,7 +2,6 @@ package rtu
 
 import (
 	"bytes"
-	"errors"
 	"io"
 	"time"
 
@@ -70,7 +69,7 @@ func (m *Mode) Send() (buf []byte, err error) {
 	return
 }
 
-func (m *Mode) Receive(tMax time.Duration) (buf, msg []byte, err error) {
+func (m *Mode) Receive(tMax time.Duration, verifyLen func(int) error) (buf, msg []byte, err error) {
 	if f := m.OnReceiveError; f != nil {
 		defer func() {
 			if err != nil {
@@ -87,12 +86,29 @@ func (m *Mode) Receive(tMax time.Duration) (buf, msg []byte, err error) {
 		err = modbus.ErrMsgTooShort
 		return
 	}
+	err = verifyLen(n - 4)
+	if err != nil {
+		return
+	}
 	if crc16.Checksum(buf, crcTab) != 0 {
-		err = ErrCRC
+		err = modbus.ErrCRC
 		return
 	}
 	msg = buf[:n-2]
 	return
 }
 
-var ErrCRC = errors.New("CRC error")
+// In case the inter-char/inter-frame timeout is too short,
+// a message might get truncated – the remaining bytes
+// will be discarded, even if they could have been received,
+// if the timeout had been a bit longer. MaybeTruncatedMsg
+// tells if the error suggests such a condition.
+func MaybeTruncatedMsg(err error) bool {
+	switch err {
+	default:
+		return false
+	case modbus.ErrMsgTooShort:
+	case modbus.ErrInvalidMsgLen:
+	}
+	return true
+}
