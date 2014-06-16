@@ -6,8 +6,8 @@ import (
 	"time"
 
 	"modbus"
-	"modbus/hash"
-	"modbus/hash/crc16"
+	"te/hash"
+	"te/hash/crc16"
 )
 
 type Mode struct {
