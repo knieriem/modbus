@@ -8,9 +8,10 @@ import (
 )
 
 type ReadMgr struct {
-	buf  []byte
-	req  chan []byte
-	done chan readResult
+	buf     []byte
+	req     chan []byte
+	done    chan readResult
+	Forward io.Writer
 }
 
 type ReadFunc func() ([]byte, error)
@@ -95,12 +96,18 @@ loop:
 				if r.err == nil {
 					dest = append(dest, r.data...)
 				}
+			} else if m.Forward != nil {
+				m.Forward.Write(r.data)
 			}
 			data <- readResult{}
 			if dest != nil {
 				select {
 				case m.done <- readResult{dest, r.err}:
-				case dest = <-m.req:
+				case b := <-m.req:
+					if m.Forward != nil {
+						m.Forward.Write(dest)
+					}
+					dest = b
 				}
 			}
 			if r.err != nil {
