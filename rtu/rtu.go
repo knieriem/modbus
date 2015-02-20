@@ -12,6 +12,7 @@ import (
 
 type Mode struct {
 	conn io.ReadWriter
+	eof  bool
 	buf  *bytes.Buffer
 
 	readMgr *ReadMgr
@@ -29,7 +30,7 @@ func NewTransmissionMode(conn io.ReadWriter) (m *Mode) {
 
 	m.buf = new(bytes.Buffer)
 
-	var buf = make([]byte, 64)
+	var buf = make([]byte, 4096)
 	rf := func() ([]byte, error) {
 		n, err := conn.Read(buf)
 		if err == nil {
@@ -63,7 +64,10 @@ func (m *Mode) Send() (buf []byte, err error) {
 	b.WriteByte(byte(crc & 0xFF))
 	b.WriteByte(byte(crc >> 8))
 
-	m.readMgr.Start()
+	err = m.readMgr.Start()
+	if err != nil {
+		return
+	}
 	buf = b.Bytes()
 	_, err = b.WriteTo(m.conn)
 	if err != nil {

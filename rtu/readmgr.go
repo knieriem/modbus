@@ -11,6 +11,8 @@ type ReadMgr struct {
 	buf     []byte
 	req     chan []byte
 	done    chan readResult
+	errC    chan error
+	eof     bool
 	Forward io.Writer
 }
 
@@ -21,13 +23,24 @@ func NewReadMgr(rf ReadFunc, exitC chan<- int) *ReadMgr {
 	m.buf = make([]byte, 0, 64)
 	m.req = make(chan []byte)
 	m.done = make(chan readResult)
+	m.errC = make(chan error)
 	go m.handle(rf, exitC)
 	return m
 }
 
-func (m *ReadMgr) Start() {
-	m.buf = m.buf[:0]
-	m.req <- m.buf
+func (m *ReadMgr) Start() (err error) {
+	if m.eof {
+		err = io.EOF
+		return
+	}
+	select {
+	case err = <-m.errC:
+		m.eof = true
+	default:
+		m.buf = m.buf[:0]
+		m.req <- m.buf
+	}
+	return
 }
 
 func (m *ReadMgr) Cancel() {
@@ -35,6 +48,11 @@ func (m *ReadMgr) Cancel() {
 }
 
 func (m *ReadMgr) Read(tMax, interframeTimeout time.Duration) (buf []byte, err error) {
+	if m.eof {
+		err = io.EOF
+		return
+	}
+
 	timeout := time.After(tMax)
 
 readLoop:
@@ -44,6 +62,8 @@ readLoop:
 			m.buf = r.data
 			if r.err != nil {
 				err = r.err
+				close(m.req)
+				m.eof = true
 				return
 			}
 			if interframeTimeout == 0 {
@@ -70,7 +90,9 @@ type readResult struct {
 }
 
 func (m *ReadMgr) handle(read ReadFunc, exitC chan<- int) {
+	var termErr error
 	var dest []byte
+	var errC chan<- error
 
 	data := make(chan readResult)
 	go func() {
@@ -94,8 +116,11 @@ func (m *ReadMgr) handle(read ReadFunc, exitC chan<- int) {
 loop:
 	for {
 		select {
+		case errC <- termErr:
+			close(errC)
+			break loop
 		case dest = <-m.req:
-		case r := <-data:
+		case r, dataOk := <-data:
 			if dest != nil {
 				if r.err == nil {
 					dest = append(dest, r.data...)
@@ -103,10 +128,17 @@ loop:
 			} else if m.Forward != nil {
 				m.Forward.Write(r.data)
 			}
-			data <- readResult{}
+			if dataOk {
+				data <- readResult{}
+			} else {
+				data = nil
+			}
 			if dest != nil {
 				select {
 				case m.done <- readResult{dest, r.err}:
+					if r.err != nil {
+						break loop
+					}
 				case b := <-m.req:
 					if m.Forward != nil {
 						m.Forward.Write(dest)
@@ -114,8 +146,9 @@ loop:
 					dest = b
 				}
 			}
-			if r.err != nil {
-				break loop
+			if r.err != nil && errC == nil {
+				termErr = r.err
+				errC = m.errC
 			}
 		}
 	}
