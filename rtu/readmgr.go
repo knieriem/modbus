@@ -30,6 +30,10 @@ func (m *ReadMgr) Start() {
 	m.req <- m.buf
 }
 
+func (m *ReadMgr) Cancel() {
+	m.req <- nil
+}
+
 func (m *ReadMgr) Read(tMax, interframeTimeout time.Duration) (buf []byte, err error) {
 	timeout := time.After(tMax)
 

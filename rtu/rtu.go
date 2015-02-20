@@ -66,6 +66,9 @@ func (m *Mode) Send() (buf []byte, err error) {
 	m.readMgr.Start()
 	buf = b.Bytes()
 	_, err = b.WriteTo(m.conn)
+	if err != nil {
+		m.readMgr.Cancel()
+	}
 	return
 }
 
