@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"io"
+	"strconv"
 	"time"
 )
 
@@ -22,6 +23,11 @@ const (
 	XSlaveDeviceFailure
 	XACK
 	XSlaveBusy
+	_
+	XMemoryParityError
+	_
+	XGwPathUnavail
+	XGwTargetFailedToRespond
 )
 
 func (x Exception) Error() (s string) {
@@ -35,11 +41,17 @@ func (x Exception) Error() (s string) {
 	case XSlaveDeviceFailure:
 		s = "slave device failure"
 	case XACK:
-		s = "Acknowledge"
+		s = "acknowledge"
 	case XSlaveBusy:
-		s = "slave busy"
+		s = "slave device busy"
+	case XMemoryParityError:
+		s = "memory parity error"
+	case XGwPathUnavail:
+		s = "gateway path unavailable"
+	case XGwTargetFailedToRespond:
+		s = "gateway target device failed to respond"
 	default:
-		s = "unknown exception"
+		s = "unknown exception 0x" + strconv.FormatUint(uint64(x), 16)
 	}
 	return
 }
