@@ -8,12 +8,13 @@ import (
 )
 
 type ReadMgr struct {
-	buf     []byte
-	req     chan []byte
-	done    chan readResult
-	errC    chan error
-	eof     bool
-	Forward io.Writer
+	buf         []byte
+	req         chan []byte
+	done        chan readResult
+	errC        chan error
+	eof         bool
+	Forward     io.Writer
+	MsgComplete func([]byte) bool
 }
 
 type ReadFunc func() ([]byte, error)
@@ -65,6 +66,11 @@ readLoop:
 				close(m.req)
 				m.eof = true
 				return
+			}
+			if m.MsgComplete != nil {
+				if m.MsgComplete(m.buf) {
+					break readLoop
+				}
 			}
 			if interframeTimeout == 0 {
 				break readLoop
