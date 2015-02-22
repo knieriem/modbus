@@ -12,7 +12,6 @@ import (
 
 type Mode struct {
 	conn io.ReadWriter
-	eof  bool
 	buf  *bytes.Buffer
 
 	readMgr *ReadMgr
