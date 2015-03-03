@@ -17,7 +17,7 @@ type Mode struct {
 	readMgr *ReadMgr
 	ExitC   chan int
 
-	h hash.Hash16
+	h Hash
 
 	InterframeTimeout time.Duration
 	OnReceiveError    func(*Mode, error)
@@ -46,6 +46,19 @@ func NewTransmissionMode(conn io.ReadWriter) (m *Mode) {
 
 var crcTab = crc16.MakeTable(crc16.IBMCRC)
 
+type Hash struct {
+	hash.Hash16
+}
+
+func NewHash() Hash {
+	return Hash{Hash16: crc16.New(crcTab)}
+}
+
+func (h *Hash) Sum(in []byte) []byte {
+	s := h.Sum16()
+	return append(in, byte(s&0xFF), byte(s>>8))
+}
+
 func (m *Mode) Name() string {
 	return "rtu"
 }
@@ -53,15 +66,13 @@ func (m *Mode) Name() string {
 func (m *Mode) MsgWriter() (w io.Writer) {
 	b := m.buf
 	b.Reset()
-	m.h = crc16.New(crcTab)
+	m.h = NewHash()
 	return io.MultiWriter(b, m.h)
 }
 
 func (m *Mode) Send() (buf []byte, err error) {
 	b := m.buf
-	crc := m.h.Sum16()
-	b.WriteByte(byte(crc & 0xFF))
-	b.WriteByte(byte(crc >> 8))
+	b.Write(m.h.Sum(nil))
 
 	err = m.readMgr.Start()
 	if err != nil {
