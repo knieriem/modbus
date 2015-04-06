@@ -10,7 +10,7 @@ import (
 	"te/hash/crc16"
 )
 
-type Mode struct {
+type Conn struct {
 	conn io.ReadWriter
 	buf  *bytes.Buffer
 
@@ -20,11 +20,11 @@ type Mode struct {
 	h Hash
 
 	InterframeTimeout time.Duration
-	OnReceiveError    func(*Mode, error)
+	OnReceiveError    func(*Conn, error)
 }
 
-func NewTransmissionMode(conn io.ReadWriter) (m *Mode) {
-	m = new(Mode)
+func NewNetConn(conn io.ReadWriter) (m *Conn) {
+	m = new(Conn)
 	m.conn = conn
 
 	m.buf = new(bytes.Buffer)
@@ -59,18 +59,18 @@ func (h *Hash) Sum(in []byte) []byte {
 	return append(in, byte(s&0xFF), byte(s>>8))
 }
 
-func (m *Mode) Name() string {
+func (m *Conn) Name() string {
 	return "rtu"
 }
 
-func (m *Mode) MsgWriter() (w io.Writer) {
+func (m *Conn) MsgWriter() (w io.Writer) {
 	b := m.buf
 	b.Reset()
 	m.h = NewHash()
 	return io.MultiWriter(b, m.h)
 }
 
-func (m *Mode) Send() (buf []byte, err error) {
+func (m *Conn) Send() (buf []byte, err error) {
 	b := m.buf
 	b.Write(m.h.Sum(nil))
 
@@ -86,7 +86,7 @@ func (m *Mode) Send() (buf []byte, err error) {
 	return
 }
 
-func (m *Mode) Receive(tMax time.Duration, verifyLen func(int) error) (buf, msg []byte, err error) {
+func (m *Conn) Receive(tMax time.Duration, verifyLen func(int) error) (buf, msg []byte, err error) {
 	if f := m.OnReceiveError; f != nil {
 		defer func() {
 			if err != nil {

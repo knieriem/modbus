@@ -56,7 +56,7 @@ func (x Exception) Error() (s string) {
 	return
 }
 
-type TransmissionMode interface {
+type NetConn interface {
 	Name() string
 	MsgWriter() io.Writer
 	Send() ([]byte, error)
@@ -64,14 +64,14 @@ type TransmissionMode interface {
 }
 
 type Stack struct {
-	mode TransmissionMode
+	mode NetConn
 
 	Tracef          func(format string, a ...interface{})
 	ResponseTimeout time.Duration
 	TurnaroundDelay time.Duration
 }
 
-func NewStack(mode TransmissionMode) (stk *Stack) {
+func NewStack(mode NetConn) (stk *Stack) {
 	stk = new(Stack)
 	stk.mode = mode
 	stk.ResponseTimeout = 1000 * time.Millisecond

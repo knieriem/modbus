@@ -16,7 +16,7 @@ var (
 	ErrTransactionIDMismatch = errors.New("tcp: mismatch of transaction ID")
 )
 
-type Mode struct {
+type Conn struct {
 	conn          net.Conn
 	buf           *bytes.Buffer
 	transactionID uint16
@@ -24,11 +24,11 @@ type Mode struct {
 	readMgr *rtu.ReadMgr
 	ExitC   chan int
 
-	OnReceiveError func(*Mode, error)
+	OnReceiveError func(*Conn, error)
 }
 
-func NewTransmissionMode(conn net.Conn) (m *Mode) {
-	m = new(Mode)
+func NewNetConn(conn net.Conn) (m *Conn) {
+	m = new(Conn)
 	m.conn = conn
 
 	m.buf = new(bytes.Buffer)
@@ -56,18 +56,18 @@ func NewTransmissionMode(conn net.Conn) (m *Mode) {
 	return
 }
 
-func (m *Mode) Name() string {
+func (m *Conn) Name() string {
 	return "tcp"
 }
 
-func (m *Mode) MsgWriter() (w io.Writer) {
+func (m *Conn) MsgWriter() (w io.Writer) {
 	b := m.buf
 	b.Reset()
 	b.Write([]byte{0, 0, 0, 0, 0, 0})
 	return b
 }
 
-func (m *Mode) Send() (buf []byte, err error) {
+func (m *Conn) Send() (buf []byte, err error) {
 	b := m.buf
 	err = m.readMgr.Start()
 	if err != nil {
@@ -85,7 +85,7 @@ func (m *Mode) Send() (buf []byte, err error) {
 	return
 }
 
-func (m *Mode) Receive(tMax time.Duration, verifyLen func(int) error) (buf, msg []byte, err error) {
+func (m *Conn) Receive(tMax time.Duration, verifyLen func(int) error) (buf, msg []byte, err error) {
 	if f := m.OnReceiveError; f != nil {
 		defer func() {
 			if err != nil {
