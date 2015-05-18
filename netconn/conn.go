@@ -188,8 +188,9 @@ type CanID struct {
 
 func (can *CanID) String() string {
 	s := strconv.FormatUint(uint64(can.ID), 16)
+	s = strings.ToUpper(s)
 	if can.Extframe {
-		s += "E"
+		s = "E/" + s
 	}
 	return s
 }
@@ -200,9 +201,9 @@ func (can *CanID) UnmarshalTidata(el tidata.Elem) (err error) {
 		err = errors.New("missing value")
 		return
 	}
-	x := strings.HasSuffix(id, "E")
+	x := strings.HasPrefix(id, "E/")
 	if x {
-		id = id[:len(id)-1]
+		id = id[2:]
 	}
 	u, err := strconv.ParseUint(id, 0, 32)
 	if err == nil {
