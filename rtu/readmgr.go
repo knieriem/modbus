@@ -54,7 +54,7 @@ func (m *ReadMgr) Read(tMax, interframeTimeout time.Duration) (buf []byte, err e
 		return
 	}
 
-	timeout := time.After(tMax)
+	timeout := time.NewTimer(tMax)
 
 readLoop:
 	for {
@@ -69,15 +69,17 @@ readLoop:
 			}
 			if m.MsgComplete != nil {
 				if m.MsgComplete(m.buf) {
+					timeout.Stop()
 					break readLoop
 				}
 			}
 			if interframeTimeout == 0 {
+				timeout.Stop()
 				break readLoop
 			}
-			timeout = time.After(interframeTimeout)
+			timeout.Reset(interframeTimeout)
 
-		case <-timeout:
+		case <-timeout.C:
 			break readLoop
 		}
 	}
