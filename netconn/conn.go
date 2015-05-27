@@ -64,7 +64,7 @@ type Proto struct {
 	InterfaceGroup *InterfaceGroup
 }
 
-func (p *Proto) UnexpectedFields() int {
+func (p *Proto) unexpectedFields() int {
 	return ^(p.RequiredFields | p.OptionalFields) & FieldMask
 }
 
@@ -196,7 +196,7 @@ func (c *Conf) Postprocess() (err error) {
 		// unsupported, ignore for now
 		return
 	}
-	unexpected := p.UnexpectedFields()
+	unexpected := p.unexpectedFields()
 	for f := 1; f < endField; f <<= 1 {
 		if p.RequiredFields&f != 0 {
 			field := fieldNameMap[f]
