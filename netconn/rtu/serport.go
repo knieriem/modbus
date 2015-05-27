@@ -70,3 +70,21 @@ func choosePort() (name string, err error) {
 	fmt.Print("\n")
 	return
 }
+
+var serialPorts = netconn.InterfaceGroup{
+	Name:       "Serial ports",
+	Interfaces: serialInterfaces,
+	SortPrefix: "A01",
+	Type:       "serport",
+}
+
+func serialInterfaces() (list []netconn.Interface) {
+	for _, info := range serenum.Ports() {
+		list = append(list, netconn.Interface{
+			Name: info.Device,
+			Desc: info.Format(nil),
+			Elem: info,
+		})
+	}
+	return
+}

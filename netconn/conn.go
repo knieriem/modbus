@@ -61,11 +61,15 @@ type Proto struct {
 	Dial           func(*Conf) (*Conn, error)
 	RequiredFields int
 	OptionalFields int
-	AddrType       []string
+	InterfaceGroup *InterfaceGroup
 }
 
 func (p *Proto) UnexpectedFields() int {
 	return ^(p.RequiredFields | p.OptionalFields) & FieldMask
+}
+
+func (p *Proto) fieldFlags() int {
+	return p.RequiredFields | p.OptionalFields
 }
 
 type Conn struct {
@@ -120,10 +124,64 @@ func (c *Conf) MakeAddr(name string, addOptions bool) (addr string) {
 	return
 }
 
-func (c *Conf) AddrType() []string {
+func (c *Conf) SupportsOptions() bool {
+	p, ok := protos[c.Proto]
+	return ok && (p.fieldFlags()&FieldOpt != 0)
+}
+
+func (c *Conf) InterfaceName() string {
+	p, ok := protos[c.Proto]
+	if !ok {
+		return ""
+	}
+	flags := p.fieldFlags()
+	if flags&FieldDev != 0 {
+		return c.Device
+	}
+	if flags&FieldAddr != 0 {
+		return string(c.Addr)
+	}
+	return ""
+}
+
+func (c *Conf) SetInterfaceName(name string) {
+	p, ok := protos[c.Proto]
+	if !ok {
+		return
+	}
+	flags := p.fieldFlags()
+	if flags&FieldDev != 0 {
+		c.Device = name
+	}
+	if flags&FieldAddr != 0 {
+		c.Addr = IPAddr(name)
+	}
+}
+
+func (c *Conf) DefaultInterfaceName() string {
+	p, ok := protos[c.Proto]
+	if !ok {
+		return ""
+	}
+	list := p.InterfaceGroup.Interfaces()
+	if len(list) == 0 {
+		return ""
+	}
+	return list[0].Name
+}
+
+func (c *Conf) InterfaceType() string {
+	p, ok := protos[c.Proto]
+	if !ok {
+		return ""
+	}
+	return p.InterfaceGroup.Type
+}
+
+func (c *Conf) Interfaces() []Interface {
 	p, ok := protos[c.Proto]
 	if ok {
-		return p.AddrType
+		return p.InterfaceGroup.Interfaces()
 	}
 	return nil
 }
@@ -298,7 +356,7 @@ func (c *Conf) derive(f []nameSpec) (dc *Conf, err error) {
 		return
 	}
 
-	flags := p.RequiredFields | p.OptionalFields
+	flags := p.fieldFlags()
 	if len(f) == 2 {
 		if s := f[1].name; s != "" {
 			if flags&FieldDev != 0 {

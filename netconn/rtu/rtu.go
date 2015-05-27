@@ -20,8 +20,8 @@ func init() {
 	netconn.RegisterProtocol(&netconn.Proto{
 		Name:           "rtu",
 		OptionalFields: netconn.DevFields,
-		AddrType:       []string{"serport"},
 		Dial:           dial,
+		InterfaceGroup: &serialPorts,
 	})
 }
 
