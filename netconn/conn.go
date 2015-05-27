@@ -160,7 +160,7 @@ func (c *Conf) SetInterfaceName(name string) {
 
 func (c *Conf) DefaultInterfaceName() string {
 	p, ok := protos[c.Proto]
-	if !ok {
+	if !ok || p.InterfaceGroup.Hidden {
 		return ""
 	}
 	list := p.InterfaceGroup.Interfaces()
