@@ -420,7 +420,7 @@ func (list ConfList) Match(connSpec string) (index int, mod *Conf, err error) {
 retry:
 	f := splitSpec(connSpec)
 	if net := f[0].name; net != "" {
-		// name present, select matching entry
+		// Name is present, look for matching entry
 		for i, c := range list {
 			if c.Name == net || c.Proto == net {
 				index = i
@@ -428,10 +428,30 @@ retry:
 				return
 			}
 		}
+
+		// No matching configuration entry found, check
+		// if a protocol exists with this name.
+		if _, ok := protos[net]; ok {
+			c := &Conf{Proto: net}
+			index = -1
+			mod, err = c.derive(f)
+			if err != nil {
+				return
+			}
+			if mod == nil {
+				mod = c
+			}
+			return
+		}
+
+		// If a colon is present in connSpec, give up.
 		if len(f) == 2 {
 			err = errors.New("no matching network connection")
 			return
 		}
+
+		// Otherwise, try again after inserting the default
+		// protocol name.
 		if p := defaultProto; p != nil {
 			connSpec = p.Name + ":" + connSpec
 		}
