@@ -1,6 +1,7 @@
 package rtu
 
 import (
+	"io"
 	"time"
 
 	"modbus/netconn"
@@ -26,7 +27,17 @@ func init() {
 }
 
 func dial(cf *netconn.Conf) (conn *netconn.Conn, err error) {
-	f, name, err := openPort(cf)
+	var f io.ReadWriteCloser
+	var name string
+
+	supportsOptions := true
+	if cmd, match := parseCommand(cf.Device); match {
+		f, err = cmd.Dial()
+		name = cf.Device
+		supportsOptions = false
+	} else {
+		f, name, err = openPort(cf)
+	}
 	if err != nil {
 		return
 	}
@@ -50,7 +61,7 @@ func dial(cf *netconn.Conf) (conn *netconn.Conn, err error) {
 	nc.InterframeTimeout = t
 
 	conn = &netconn.Conn{
-		Addr:       cf.MakeAddr(name, true),
+		Addr:       cf.MakeAddr(name, supportsOptions),
 		Device:     name,
 		DeviceInfo: portInfo(name),
 		NetConn:    nc,
