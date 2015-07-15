@@ -14,8 +14,16 @@ func (f Float32Big) Value() float32 {
 	return float32(f)
 }
 
+func (f Float32Big) Set(v float32) {
+	f = Float32Big(v)
+}
+
 func decodeFloat32(f [4]byte) float32 {
 	return math.Float32frombits(modbus.ByteOrder.Uint32(f[:]))
+}
+
+func encodeFloat32(f []byte, v float32) {
+	modbus.ByteOrder.PutUint32(f, math.Float32bits(v))
 }
 
 type Float32BigBS [4]byte
@@ -23,6 +31,12 @@ type Float32BigBS [4]byte
 func (f Float32BigBS) Value() float32 {
 	f[0], f[1], f[2], f[3] = f[1], f[0], f[3], f[2]
 	return decodeFloat32(f)
+}
+
+func (f Float32BigBS) Set(v float32) {
+	encodeFloat32(f[:], v)
+	f[1], f[0], f[3], f[2] = f[0], f[1], f[2], f[3]
+	return
 }
 
 type Float32LittleBS [4]byte
@@ -34,9 +48,21 @@ func (f Float32LittleBS) Value() float32 {
 	return decodeFloat32(f)
 }
 
+func (f Float32LittleBS) Set(v float32) {
+	encodeFloat32(f[:], v)
+	f[2], f[3], f[0], f[1] = f[0], f[1], f[2], f[3]
+	return
+}
+
 func (f Float32Little) Value() float32 {
 	f[0], f[1], f[2], f[3] = f[3], f[2], f[1], f[0]
 	return decodeFloat32(f)
+}
+
+func (f Float32Little) Set(v float32) {
+	encodeFloat32(f[:], v)
+	f[3], f[2], f[1], f[0] = f[0], f[1], f[2], f[3]
+	return
 }
 
 type Uint32LittleBS [2]uint16
