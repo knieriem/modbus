@@ -110,7 +110,7 @@ func packedBytesBufValue(src PackedBytesBuf) (n int, v reflect.Value) {
 	return
 }
 
-func DecodeString(src PackedBytesBuf) string {
+func DecodeString(src PackedBytesBuf, filters ...func([]byte) []byte) string {
 	n, v := packedBytesBufValue(src)
 	buf := make([]byte, 0, n*2)
 	for i := 0; i < n; i++ {
@@ -118,11 +118,21 @@ func DecodeString(src PackedBytesBuf) string {
 		b0, b1 := d.decode()
 		buf = append(buf, b0, b1)
 	}
+	for _, f := range filters {
+		buf = f(buf)
+	}
+	return string(buf)
+}
+
+func StopAtZero(buf []byte) []byte {
 	if i := bytes.IndexByte(buf, 0); i != -1 {
 		buf = buf[:i]
 	}
-	buf = bytes.TrimRight(buf, " ")
-	return string(buf)
+	return buf
+}
+
+func TrimRightSpace(buf []byte) []byte {
+	return bytes.TrimRight(buf, " \x00")
 }
 
 func EncodeString(dest PackedBytesBuf, s string) {
