@@ -6,7 +6,7 @@ import (
 	"os/exec"
 	"strings"
 
-	"github.com/knieriem/text"
+	"github.com/knieriem/text/rc"
 )
 
 type cmd struct {
@@ -21,7 +21,7 @@ func parseCommand(spec string) (c *cmd, match bool) {
 		return
 	}
 	match = true
-	args := text.Tokenize(spec[1:])
+	args := rc.Tokenize(spec[1:])
 	c = new(cmd)
 	c.Cmd = exec.Command(args[0], args[1:]...)
 	return
