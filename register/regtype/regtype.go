@@ -360,7 +360,7 @@ func (v *fmtValue) Format() string {
 
 type divValue struct {
 	baseValue
-	div uint
+	div  uint
 	prec int
 }
 
@@ -456,11 +456,11 @@ func parseValueSpec(dest []Value, s string) (vlist []Value, nRegs int, err error
 
 type Item struct {
 	def
-	fmt string
-	n   int
-	div uint
+	fmt       string
+	n         int
+	div       uint
 	divDigits int
-	typeName string
+	typeName  string
 }
 
 func parseTypeSpec(s string) (item Item, err error) {
