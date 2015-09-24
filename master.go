@@ -118,9 +118,8 @@ func (stk *Stack) Request(addr, fn uint8, req Request, resp Response, expectedLe
 		if err != nil {
 			stk.Tracef("-> %s % x error: %v\n", stk.mode.Name(), buf, err)
 			return
-		} else {
-			stk.Tracef("-> %s % x\n", stk.mode.Name(), buf)
 		}
+		stk.Tracef("-> %s % x\n", stk.mode.Name(), buf)
 	}
 	if err != nil {
 		return
