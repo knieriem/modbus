@@ -56,6 +56,10 @@ func NewNetConn(conn net.Conn) (m *Conn) {
 	return
 }
 
+func (m *Conn) SetIntrC(c <-chan error) {
+	m.readMgr.IntrC = c
+}
+
 func (m *Conn) Name() string {
 	return "tcp"
 }

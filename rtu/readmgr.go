@@ -15,6 +15,7 @@ type ReadMgr struct {
 	eof         bool
 	Forward     io.Writer
 	MsgComplete func([]byte) bool
+	IntrC       <-chan error
 }
 
 type ReadFunc func() ([]byte, error)
@@ -81,12 +82,14 @@ readLoop:
 
 		case <-timeout.C:
 			break readLoop
+		case err = <-m.IntrC:
+			break readLoop
 		}
 	}
 	m.req <- nil
 
 	buf = m.buf
-	if len(buf) == 0 {
+	if err == nil && len(buf) == 0 {
 		err = modbus.ErrTimeout
 	}
 	return

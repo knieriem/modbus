@@ -73,12 +73,17 @@ func (p *Proto) fieldFlags() int {
 }
 
 type Conn struct {
-	modbus.NetConn
+	NetConn
 	io.Closer
 	Addr       string
 	Device     string
 	DeviceInfo string
 	ExitC      <-chan int
+}
+
+type NetConn interface {
+	modbus.NetConn
+	SetIntrC(<-chan error)
 }
 
 type Conf struct {
