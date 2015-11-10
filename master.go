@@ -2,7 +2,6 @@ package modbus
 
 import (
 	"encoding/binary"
-	"errors"
 	"io"
 	"strconv"
 	"time"
@@ -79,12 +78,18 @@ func NewStack(mode NetConn) (stk *Stack) {
 	return
 }
 
-var ErrTimeout = errors.New("timeout")
-var ErrCorruptMsgLen = errors.New("corrupt msg length")
-var ErrInvalidMsgLen = errors.New("invalid msg length")
-var ErrMsgTooShort = errors.New("msg too short")
-var ErrMsgTooLong = errors.New("msg too long")
-var ErrCRC = errors.New("CRC error")
+type Error string
+
+func (e Error) Error() string {
+	return "modbus: " + string(e)
+}
+
+var ErrTimeout = Error("timeout")
+var ErrCorruptMsgLen = Error("corrupt msg length")
+var ErrInvalidMsgLen = Error("invalid msg length")
+var ErrMsgTooShort = Error("msg too short")
+var ErrMsgTooLong = Error("msg too long")
+var ErrCRC = Error("CRC error")
 
 func (stk *Stack) Request(addr, fn uint8, req Request, resp Response, expectedLengths []int) (err error) {
 	w := stk.mode.MsgWriter()
@@ -129,7 +134,7 @@ func (stk *Stack) Request(addr, fn uint8, req Request, resp Response, expectedLe
 		return
 	}
 	if msg[0] != addr {
-		err = errors.New("response: addr mismatch")
+		err = Error("response: addr mismatch")
 		return
 	}
 	if msg[1] == ErrorMask|fn {
@@ -142,7 +147,7 @@ func (stk *Stack) Request(addr, fn uint8, req Request, resp Response, expectedLe
 		return
 	}
 	if msg[1] != fn {
-		err = errors.New("response: function mismatch")
+		err = Error("response: function mismatch")
 		return
 	}
 	if resp != nil {
