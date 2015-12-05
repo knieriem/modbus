@@ -91,6 +91,10 @@ var ErrMsgTooShort = Error("msg too short")
 var ErrMsgTooLong = Error("msg too long")
 var ErrCRC = Error("CRC error")
 
+type Bus interface {
+	Request(addr, fn uint8, req Request, resp Response, expectedLengths []int) error
+}
+
 func (stk *Stack) Request(addr, fn uint8, req Request, resp Response, expectedLengths []int) (err error) {
 	w := stk.mode.MsgWriter()
 
