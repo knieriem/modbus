@@ -155,6 +155,7 @@ func parseObject(o *Object, data []byte) (tail []byte, err error) {
 		return
 	}
 	o.ID = ID(data[0])
+	o.Data = nil
 	n := int(data[1])
 	data = data[2:]
 	if len(data) < n {
