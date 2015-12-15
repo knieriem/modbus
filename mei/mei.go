@@ -47,7 +47,7 @@ func (m *msg) Decode(buf []byte) (err error) {
 }
 
 func (t *Transport) Request(req []byte) (resp []byte, err error) {
-	err = t.sl.Request(0x43, &msg{typ: t.typ, data: req}, &t.respBuf, nil)
+	err = t.sl.Request(0x2B, &msg{typ: t.typ, data: req}, &t.respBuf, nil)
 	if err != nil {
 		return
 	}
