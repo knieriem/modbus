@@ -19,6 +19,12 @@ func NewSlave(sl modbus.Slave) *Slave {
 	return &Slave{Slave: sl}
 }
 
+type Error string
+
+func (e Error) Error() string {
+	return "register: " + string(e)
+}
+
 type Func func(regAddr uint16, data interface{}) error
 
 type readRegistersResp struct {
@@ -168,4 +174,46 @@ func ParseAddr(addrStr string) (addr uint16, err error) {
 		return 0, err
 	}
 	return uint16(u64) + uint16(offset), nil
+}
+
+func ParseModiconNum(sl modbus.StdRegisterFuncs, value string) (addr uint16, f Func, err error) {
+	value, offset, err := parseOffset(value)
+	if err != nil {
+		return 0, nil, err
+	}
+	if len(value) == 0 {
+		return 0, nil, Error("empty register number")
+	}
+
+	// decode reference
+	switch value[0] {
+	case '3':
+		f = sl.ReadInputRegs
+	case '4':
+		f = sl.ReadHoldingRegs
+	case ' ', '\t':
+		return 0, nil, Error("initial white-space not allowed")
+	default:
+		return 0, nil, Error("reference not suppored")
+	}
+
+	value = value[1:]
+	u64, err := strconv.ParseUint(value, 10, 32)
+	if err != nil {
+		return 0, nil, err
+	}
+	if u64 == 0 {
+		return 0, nil, Error("0 is not a valid register number")
+	}
+	u64 -= 1
+	switch len(value) {
+	default:
+		return 0, nil, Error("invalid number of digits")
+	case 5:
+		if u64 > 0xFFFF {
+			return 0, nil, Error("number exceeds address range")
+		}
+	case 4:
+	}
+	return uint16(u64) + uint16(offset), f, nil
 }
