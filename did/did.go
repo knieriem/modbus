@@ -143,6 +143,10 @@ more:
 		}
 		list = append(list, o)
 	}
+	if len(data) != 0 {
+		err = Error("unexpected trailing bytes")
+		return
+	}
 	if h.MoreFollows != 0 {
 		forceID = true
 		startID = ID(h.NextObjID)
