@@ -115,8 +115,11 @@ more:
 		return
 	}
 
+	data := br.Bytes()
 	if h.NObj == 0 {
-		err = Error("invalid number of objects")
+		if len(data) != 0 {
+			err = Error("invalid number of objects")
+		}
 		return
 	}
 	if cat == Single {
@@ -126,7 +129,6 @@ more:
 		}
 	}
 
-	data := br.Bytes()
 	var o Object
 	for i := 0; i < int(h.NObj); i++ {
 		data, err = parseObject(&o, data)
