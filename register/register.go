@@ -5,6 +5,8 @@ import (
 	"encoding/binary"
 	"errors"
 	"io"
+	"strconv"
+	"strings"
 
 	"modbus"
 )
@@ -143,4 +145,27 @@ func dataBufSize(data interface{}) (nBytes int, nReg uint16, err error) {
 	}
 	nReg = uint16(nBytes / 2)
 	return
+}
+
+func parseOffset(expr string) (value string, offset int, err error) {
+	if i := strings.IndexAny(expr, "+-"); i != -1 {
+		i64, err := strconv.ParseInt(expr[i:], 0, 16)
+		if err != nil {
+			return "", 0, err
+		}
+		return expr[:i], int(i64), nil
+	}
+	return expr, 0, nil
+}
+
+func ParseAddr(addrStr string) (addr uint16, err error) {
+	addrStr, offset, err := parseOffset(addrStr)
+	if err != nil {
+		return 0, err
+	}
+	u64, err := strconv.ParseUint(addrStr, 0, 16)
+	if err != nil {
+		return 0, err
+	}
+	return uint16(u64) + uint16(offset), nil
 }
