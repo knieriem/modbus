@@ -73,6 +73,11 @@ var types = map[string]def{
 		parse:     newInt32,
 		size:      2,
 	},
+	"i64": {
+		makeSlice: makeInt64,
+		parse:     newInt64,
+		size:      4,
+	},
 	"x": {
 		makeSlice: makeUint16,
 		fmt:       "%x",
