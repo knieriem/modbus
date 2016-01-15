@@ -48,6 +48,11 @@ var types = map[string]def{
 		parse:     newFloat32,
 		size:      2,
 	},
+	"f64": {
+		makeSlice: makeFloat64,
+		parse:     newFloat64,
+		size:      4,
+	},
 	"u": {
 		makeSlice: makeUint16,
 		parse:     newUint16,
@@ -309,6 +314,29 @@ func newFloat32(s string) (v baseValue, err error) {
 		return
 	}
 	v = Float32(f)
+	return
+}
+
+type Float64 float64
+
+func (f Float64) Format() string {
+	return strconv.FormatFloat(float64(f), 'g', -1, 64)
+}
+
+func (f Float64) Value() interface{} {
+	return f
+}
+
+func makeFloat64(n int) interface{} {
+	return make([]Float64, n)
+}
+
+func newFloat64(s string) (v baseValue, err error) {
+	f, err := strconv.ParseFloat(s, 64)
+	if err != nil {
+		return
+	}
+	v = Float64(f)
 	return
 }
 
