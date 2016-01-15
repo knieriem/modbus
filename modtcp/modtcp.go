@@ -11,9 +11,21 @@ import (
 	"modbus/rtu"
 )
 
+const (
+	hdrSize     = 6 // Size of the MBAP header, without the Unit field
+	mbapHdrSize = hdrSize + 1
+
+	hdrPosTxnID   = 0
+	hdrPosProtoID = 2
+	hdrPosLen     = 4
+	hdrPosUnit    = 6
+)
+
 var (
 	ErrWrongProtocolID       = errors.New("tcp: wrong protocol ID")
 	ErrTransactionIDMismatch = errors.New("tcp: mismatch of transaction ID")
+
+	bo = modbus.ByteOrder
 )
 
 type Conn struct {
@@ -44,11 +56,11 @@ func NewNetConn(conn net.Conn) (m *Conn) {
 	m.ExitC = make(chan int, 1)
 	m.readMgr = rtu.NewReadMgr(rf, m.ExitC)
 	m.readMgr.MsgComplete = func(buf []byte) (complete bool) {
-		if len(buf) < 6 {
+		if len(buf) < hdrSize {
 			return
 		}
-		length := modbus.ByteOrder.Uint16(buf[4:])
-		if len(buf) >= int(length+6) {
+		length := bo.Uint16(buf[hdrPosLen:])
+		if len(buf) >= int(length+hdrSize) {
 			complete = true
 		}
 		return
@@ -79,8 +91,8 @@ func (m *Conn) Send() (buf []byte, err error) {
 	}
 	buf = b.Bytes()
 	m.transactionID++
-	modbus.ByteOrder.PutUint16(buf, m.transactionID)
-	modbus.ByteOrder.PutUint16(buf[4:], uint16(len(buf[6:])))
+	bo.PutUint16(buf[hdrPosTxnID:], m.transactionID)
+	bo.PutUint16(buf[hdrPosLen:], uint16(len(buf[hdrSize:])))
 
 	_, err = b.WriteTo(m.conn)
 	if err != nil {
@@ -107,11 +119,11 @@ retry:
 		err = modbus.ErrMsgTooShort
 		return
 	}
-	if int(modbus.ByteOrder.Uint16(buf[2:])) != 0 {
+	if int(bo.Uint16(buf[hdrPosProtoID:])) != 0 {
 		err = ErrWrongProtocolID
 		return
 	}
-	length := int(modbus.ByteOrder.Uint16(buf[4:])) + 6
+	length := int(bo.Uint16(buf[hdrPosLen:])) + hdrSize
 	switch {
 	case n < length:
 		err = modbus.ErrMsgTooShort
@@ -124,7 +136,7 @@ retry:
 	if err != nil {
 		return
 	}
-	tID := modbus.ByteOrder.Uint16(buf)
+	tID := bo.Uint16(buf[hdrPosTxnID:])
 	switch {
 	case tID < m.transactionID:
 		err = m.readMgr.Start()
@@ -136,6 +148,6 @@ retry:
 		err = ErrTransactionIDMismatch
 		return
 	}
-	msg = buf[6:]
+	msg = buf[hdrSize:]
 	return
 }
