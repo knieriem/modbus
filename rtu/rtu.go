@@ -133,3 +133,7 @@ func MaybeTruncatedMsg(err error) bool {
 	}
 	return true
 }
+
+func (m *Conn) ReadMgr() *ReadMgr {
+	return m.readMgr
+}
