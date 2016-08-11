@@ -551,7 +551,7 @@ func parseType(s string) (item Item, err error) {
 			item.fmt = divstr[i:]
 			divstr = divstr[:i]
 		}
-		u, err1 := strconv.ParseUint(divstr[1:], 10, 16)
+		u, err1 := strconv.ParseUint(divstr[1:], 10, 32)
 		if err1 != nil {
 			err = err1
 			return
@@ -560,6 +560,12 @@ func parseType(s string) (item Item, err error) {
 		switch {
 		default:
 			item.divDigits = 0
+		case item.div > 1e5:
+			item.divDigits = 6
+		case item.div > 1e4:
+			item.divDigits = 5
+		case item.div > 1e3:
+			item.divDigits = 4
 		case item.div > 100:
 			item.divDigits = 3
 		case item.div > 10:
