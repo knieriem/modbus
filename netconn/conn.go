@@ -79,6 +79,7 @@ type Conn struct {
 	Device     string
 	DeviceInfo string
 	ExitC      <-chan int
+	Conf       *Conf
 }
 
 type NetConn interface {
@@ -114,7 +115,12 @@ func (c *Conf) Dial() (conn *Conn, err error) {
 	if err != nil {
 		return
 	}
-	return p.Dial(c)
+	conn, err = p.Dial(c)
+	if err != nil {
+		return
+	}
+	conn.Conf = c
+	return conn, nil
 }
 
 func (c *Conf) MakeAddr(name string, addOptions bool) (addr string) {
