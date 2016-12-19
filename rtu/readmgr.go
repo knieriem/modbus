@@ -70,12 +70,16 @@ readLoop:
 			}
 			if m.MsgComplete != nil {
 				if m.MsgComplete(m.buf) {
-					timeout.Stop()
+					if !timeout.Stop() {
+						<-timeout.C
+					}
 					break readLoop
 				}
 			}
 			if interframeTimeout == 0 {
-				timeout.Stop()
+				if !timeout.Stop() {
+					<-timeout.C
+				}
 				break readLoop
 			}
 			timeout.Reset(interframeTimeout)
