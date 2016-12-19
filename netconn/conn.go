@@ -90,13 +90,14 @@ type NetConn interface {
 type Conf struct {
 	tidataInfo
 
-	Proto   string
-	Name    string
-	Addr    IPAddr
-	Device  string
-	Options []string
-	Txid    CanID
-	Rxid    CanID
+	Proto    string
+	Name     string
+	Addr     IPAddr
+	Device   string
+	Options  []string
+	Options2 []string
+	Txid     CanID
+	Rxid     CanID
 
 	Default bool
 }
