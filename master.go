@@ -195,6 +195,7 @@ func MsgInvalid(err error) bool {
 	case ErrMsgTooLong:
 	case ErrCorruptMsgLen:
 	case ErrInvalidMsgLen:
+	case XGwTargetFailedToRespond:
 	case ErrCRC:
 	}
 	return true
