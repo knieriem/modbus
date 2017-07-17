@@ -68,6 +68,7 @@ type Stack struct {
 	Tracef          func(format string, a ...interface{})
 	ResponseTimeout time.Duration
 	TurnaroundDelay time.Duration
+	RequestStats    RequestStats
 }
 
 func NewStack(mode NetConn) (stk *Stack) {
@@ -100,6 +101,9 @@ func (stk *Stack) Request(addr, fn uint8, req Request, resp Response, expectedLe
 
 	w.Write([]byte{addr, fn})
 
+	defer func() {
+		stk.RequestStats.Update(err)
+	}()
 	if req != nil {
 		err = req.Encode(w)
 		if err != nil {
