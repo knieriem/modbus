@@ -38,6 +38,7 @@ func NewNetConn(conn io.ReadWriter) (m *Conn) {
 		return nil, err
 	}
 	m.ExitC = make(chan int, 1)
+	m.h = NewHash()
 	m.readMgr = NewReadMgr(rf, m.ExitC)
 
 	m.InterframeTimeout = 5 * time.Millisecond
@@ -70,7 +71,7 @@ func (m *Conn) Name() string {
 func (m *Conn) MsgWriter() (w io.Writer) {
 	b := m.buf
 	b.Reset()
-	m.h = NewHash()
+	m.h.Reset()
 	return io.MultiWriter(b, m.h)
 }
 
