@@ -40,6 +40,10 @@ func NewNetConn(conn io.ReadWriter) (m *Conn) {
 	m.ExitC = make(chan int, 1)
 	m.h = NewHash()
 	m.readMgr = NewReadMgr(rf, m.ExitC)
+	m.readMgr.checkBytes = func(b []byte) bool {
+		m.h.Write(b)
+		return m.h.Sum16() == 0
+	}
 
 	m.InterframeTimeout = 5 * time.Millisecond
 	return
@@ -99,6 +103,7 @@ func (m *Conn) Receive(tMax time.Duration, verifyLen func(int) error) (buf, msg 
 			}
 		}()
 	}
+	m.h.Reset()
 	buf, err = m.readMgr.Read(tMax, m.InterframeTimeout)
 	if err != nil {
 		return
@@ -112,7 +117,7 @@ func (m *Conn) Receive(tMax time.Duration, verifyLen func(int) error) (buf, msg 
 	if err != nil {
 		return
 	}
-	if crc16.Checksum(buf, crcTab) != 0 {
+	if m.h.Sum16() != 0 {
 		err = modbus.ErrCRC
 		return
 	}

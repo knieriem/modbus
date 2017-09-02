@@ -16,6 +16,7 @@ type ReadMgr struct {
 	Forward     io.Writer
 	MsgComplete func([]byte) bool
 	IntrC       <-chan error
+	checkBytes  func([]byte) bool
 }
 
 type ReadFunc func() ([]byte, error)
@@ -54,14 +55,21 @@ func (m *ReadMgr) Read(tMax, interframeTimeout time.Duration) (buf []byte, err e
 		err = io.EOF
 		return
 	}
-
+	bufok := false
+	if m.checkBytes == nil {
+		bufok = true
+	}
+	nto := 0
 	timeout := time.NewTimer(tMax)
-
 readLoop:
 	for {
 		select {
 		case r := <-m.done:
+			nb := len(m.buf)
 			m.buf = r.data
+			if m.checkBytes != nil {
+				bufok = m.checkBytes(m.buf[nb:])
+			}
 			if r.err != nil {
 				err = r.err
 				close(m.req)
@@ -85,6 +93,11 @@ readLoop:
 			timeout.Reset(interframeTimeout)
 
 		case <-timeout.C:
+			if len(m.buf) != 0 && !bufok && nto < 10 {
+				nto++
+				timeout.Reset(interframeTimeout)
+				continue
+			}
 			break readLoop
 		case err = <-m.IntrC:
 			break readLoop
