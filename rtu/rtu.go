@@ -15,7 +15,7 @@ type Conn struct {
 	buf  *bytes.Buffer
 
 	readMgr *ReadMgr
-	ExitC   chan int
+	ExitC   chan error
 
 	h Hash
 
@@ -37,7 +37,7 @@ func NewNetConn(conn io.ReadWriter) (m *Conn) {
 		}
 		return nil, err
 	}
-	m.ExitC = make(chan int, 1)
+	m.ExitC = make(chan error, 1)
 	m.h = NewHash()
 	m.readMgr = NewReadMgr(rf, m.ExitC)
 	m.readMgr.checkBytes = func(b []byte) bool {

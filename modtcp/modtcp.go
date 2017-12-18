@@ -34,7 +34,7 @@ type Conn struct {
 	transactionID uint16
 
 	readMgr *rtu.ReadMgr
-	ExitC   chan int
+	ExitC   chan error
 
 	OnReceiveError func(*Conn, error)
 }
@@ -53,7 +53,7 @@ func NewNetConn(conn net.Conn) (m *Conn) {
 		}
 		return nil, err
 	}
-	m.ExitC = make(chan int, 1)
+	m.ExitC = make(chan error, 1)
 	m.readMgr = rtu.NewReadMgr(rf, m.ExitC)
 	m.readMgr.MsgComplete = func(buf []byte) (complete bool) {
 		if len(buf) < hdrSize {

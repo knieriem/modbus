@@ -21,7 +21,7 @@ type ReadMgr struct {
 
 type ReadFunc func() ([]byte, error)
 
-func NewReadMgr(rf ReadFunc, exitC chan<- int) *ReadMgr {
+func NewReadMgr(rf ReadFunc, exitC chan<- error) *ReadMgr {
 	m := new(ReadMgr)
 	m.buf = make([]byte, 0, 64)
 	m.req = make(chan []byte)
@@ -117,28 +117,25 @@ type readResult struct {
 	err  error
 }
 
-func (m *ReadMgr) handle(read ReadFunc, exitC chan<- int) {
+func (m *ReadMgr) handle(read ReadFunc, exitC chan<- error) {
 	var termErr error
 	var dest []byte
 	var errC chan<- error
 
 	data := make(chan readResult)
 	go func() {
-		exitCode := 1
+		var err error
 		for {
-			buf, err := read()
-			data <- readResult{buf, err}
+			buf, err1 := read()
+			data <- readResult{buf, err1}
 			<-data
-			if err != nil {
-				if err == io.EOF {
-					exitCode = 0
-				}
+			if err1 != nil {
+				err = err1
 				break
 			}
 		}
 		close(data)
-		exitC <- exitCode
-		return
+		exitC <- err
 	}()
 
 loop:

@@ -78,7 +78,7 @@ type Conn struct {
 	Addr       string
 	Device     string
 	DeviceInfo string
-	ExitC      <-chan int
+	ExitC      <-chan error
 	Conf       *Conf
 }
 
