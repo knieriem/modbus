@@ -151,14 +151,14 @@ func DecodeString(src PackedBytesBuf, filters ...func([]byte) []byte) string {
 }
 
 func StopAtZero(buf []byte) []byte {
-	if i := bytes.IndexByte(buf, 0); i != -1 {
+	if i := bytes.IndexAny(buf, "\x00\xff"); i != -1 {
 		buf = buf[:i]
 	}
 	return buf
 }
 
 func TrimRightSpace(buf []byte) []byte {
-	return bytes.TrimRight(buf, " \x00")
+	return bytes.TrimRight(buf, " \x00\xff")
 }
 
 func EncodeString(dest PackedBytesBuf, s string) {
