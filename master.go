@@ -1,6 +1,7 @@
 package modbus
 
 import (
+	"bytes"
 	"encoding/binary"
 	"io"
 	"strconv"
@@ -88,6 +89,7 @@ func (e Error) Error() string {
 var ErrTimeout = Error("timeout")
 var ErrCorruptMsgLen = Error("corrupt msg length")
 var ErrInvalidMsgLen = Error("invalid msg length")
+var ErrUnexpectedEcho = Error("unexpected echo")
 var ErrMsgTooShort = Error("msg too short")
 var ErrMsgTooLong = Error("msg too long")
 var ErrCRC = Error("CRC error")
@@ -111,12 +113,12 @@ func (stk *Stack) Request(addr, fn uint8, req Request, resp Response, expectedLe
 		}
 	}
 
-	buf, err := stk.mode.Send()
+	sent, err := stk.mode.Send()
 	if err != nil {
 		return
 	}
 	if stk.Tracef != nil {
-		stk.Tracef("<- %s % x\n", stk.mode.Name(), buf)
+		stk.Tracef("<- %s % x\n", stk.mode.Name(), sent)
 	}
 	if addr == 0 {
 		time.Sleep(stk.TurnaroundDelay)
@@ -126,7 +128,13 @@ func (stk *Stack) Request(addr, fn uint8, req Request, resp Response, expectedLe
 	verifyRespLen := func(n int) error {
 		return verifyMsgLength(n, expectedLengths)
 	}
+
 	buf, msg, err := stk.mode.Receive(stk.ResponseTimeout, verifyRespLen)
+	if err != nil {
+		if bytes.Equal(buf, sent) {
+			err = ErrUnexpectedEcho
+		}
+	}
 	if stk.Tracef != nil {
 		if err != nil {
 			stk.Tracef("-> %s % x error: %v\n", stk.mode.Name(), buf, err)
