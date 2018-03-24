@@ -59,6 +59,7 @@ func dial(cf *netconn.Conf) (conn *netconn.Conn, err error) {
 		t = tifr
 	}
 	nc.InterframeTimeout = t
+	nc.LocalEcho = cf.LocalEcho
 
 	conn = &netconn.Conn{
 		Addr:       cf.MakeAddr(name, supportsOptions),

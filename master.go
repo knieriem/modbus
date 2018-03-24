@@ -89,7 +89,9 @@ func (e Error) Error() string {
 var ErrTimeout = Error("timeout")
 var ErrCorruptMsgLen = Error("corrupt msg length")
 var ErrInvalidMsgLen = Error("invalid msg length")
+var ErrEchoMismatch = Error("local echo mismatch")
 var ErrUnexpectedEcho = Error("unexpected echo")
+var ErrInvalidEchoLen = Error("invalid local echo length")
 var ErrMsgTooShort = Error("msg too short")
 var ErrMsgTooLong = Error("msg too long")
 var ErrCRC = Error("CRC error")
@@ -207,6 +209,7 @@ func MsgInvalid(err error) bool {
 	case ErrMsgTooLong:
 	case ErrCorruptMsgLen:
 	case ErrInvalidMsgLen:
+	case ErrInvalidEchoLen:
 	case XGwTargetFailedToRespond:
 	case ErrCRC:
 	}

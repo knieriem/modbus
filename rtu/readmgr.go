@@ -1,6 +1,7 @@
 package rtu
 
 import (
+	"bytes"
 	"io"
 	"time"
 
@@ -9,6 +10,7 @@ import (
 
 type ReadMgr struct {
 	buf         []byte
+	echo        []byte
 	req         chan []byte
 	done        chan readResult
 	errC        chan error
@@ -61,6 +63,7 @@ func (m *ReadMgr) Read(tMax, interframeTimeout time.Duration) (buf []byte, err e
 	}
 	nto := 0
 	timeout := time.NewTimer(tMax)
+	nSkip := 0
 readLoop:
 	for {
 		select {
@@ -76,7 +79,18 @@ readLoop:
 				m.eof = true
 				return
 			}
-			if m.MsgComplete != nil {
+			if m.echo != nil {
+				if len(m.buf) == len(m.echo) {
+					if !bytes.Equal(m.buf, m.echo) {
+						err = modbus.ErrEchoMismatch
+						break readLoop
+					}
+					nSkip = len(m.echo)
+					m.echo = nil
+					timeout.Reset(tMax)
+					break
+				}
+			} else if m.MsgComplete != nil {
 				if m.MsgComplete(m.buf) {
 					if !timeout.Stop() {
 						<-timeout.C
@@ -93,7 +107,13 @@ readLoop:
 			timeout.Reset(interframeTimeout)
 
 		case <-timeout.C:
-			if len(m.buf) != 0 && !bufok && nto < 10 {
+			if m.echo != nil {
+				if len(m.buf) != 0 {
+					err = modbus.ErrInvalidEchoLen
+				} else {
+					err = modbus.ErrTimeout
+				}
+			} else if len(m.buf) != 0 && !bufok && nto < 10 {
 				nto++
 				timeout.Reset(interframeTimeout)
 				continue
@@ -105,7 +125,7 @@ readLoop:
 	}
 	m.req <- nil
 
-	buf = m.buf
+	buf = m.buf[nSkip:]
 	if err == nil && len(buf) == 0 {
 		err = modbus.ErrTimeout
 	}

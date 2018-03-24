@@ -19,6 +19,7 @@ type Conn struct {
 
 	h Hash
 
+	LocalEcho         bool
 	InterframeTimeout time.Duration
 	OnReceiveError    func(*Conn, error)
 }
@@ -91,6 +92,9 @@ func (m *Conn) Send() (buf []byte, err error) {
 	_, err = b.WriteTo(m.conn)
 	if err != nil {
 		m.readMgr.Cancel()
+	}
+	if m.LocalEcho {
+		m.readMgr.echo = buf
 	}
 	return
 }
