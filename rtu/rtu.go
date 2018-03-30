@@ -3,6 +3,7 @@ package rtu
 import (
 	"bytes"
 	"io"
+	"os"
 	"time"
 
 	"modbus"
@@ -80,6 +81,8 @@ func (m *Conn) MsgWriter() (w io.Writer) {
 	return io.MultiWriter(b, m.h)
 }
 
+var localEchoSetByEnv = os.Getenv("MODBUS_RTU_LOCAL_ECHO") == "1"
+
 func (m *Conn) Send() (buf []byte, err error) {
 	b := m.buf
 	b.Write(m.h.Sum(nil))
@@ -93,7 +96,7 @@ func (m *Conn) Send() (buf []byte, err error) {
 	if err != nil {
 		m.readMgr.Cancel()
 	}
-	if m.LocalEcho {
+	if m.LocalEcho || localEchoSetByEnv {
 		m.readMgr.echo = buf
 	}
 	return
