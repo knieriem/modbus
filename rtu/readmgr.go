@@ -70,8 +70,11 @@ readLoop:
 		case r := <-m.done:
 			nb := len(m.buf)
 			m.buf = r.data
-			if m.checkBytes != nil {
+			if m.checkBytes != nil && m.echo == nil {
 				bufok = m.checkBytes(m.buf[nb:])
+			}
+			if !timeout.Stop() {
+				<-timeout.C
 			}
 			if r.err != nil {
 				err = r.err
@@ -79,41 +82,44 @@ readLoop:
 				m.eof = true
 				return
 			}
+		reeval:
 			if m.echo != nil {
-				if len(m.buf) == len(m.echo) {
-					if !bytes.Equal(m.buf, m.echo) {
+				nEcho := len(m.echo)
+				if len(m.buf) >= nEcho {
+					tail := m.buf[nEcho:]
+					if m.checkBytes != nil && len(tail) != 0 {
+						bufok = m.checkBytes(tail)
+					}
+					if !bytes.Equal(m.buf[:nEcho], m.echo) {
 						err = modbus.ErrEchoMismatch
 						break readLoop
 					}
-					nSkip = len(m.echo)
+					nSkip = nEcho
 					m.echo = nil
-					timeout.Reset(tMax)
-					break
-				}
-			} else if m.MsgComplete != nil {
-				if m.MsgComplete(m.buf) {
-					if !timeout.Stop() {
-						<-timeout.C
+					if len(tail) != 0 {
+						goto reeval
 					}
+				}
+				timeout.Reset(tMax)
+				break
+			} else if m.MsgComplete != nil {
+				if m.MsgComplete(m.buf[nSkip:]) {
 					break readLoop
 				}
 			}
 			if interframeTimeout == 0 {
-				if !timeout.Stop() {
-					<-timeout.C
-				}
 				break readLoop
 			}
 			timeout.Reset(interframeTimeout)
 
 		case <-timeout.C:
 			if m.echo != nil {
-				if len(m.buf) != 0 {
+				if len(m.buf[nSkip:]) != 0 {
 					err = modbus.ErrInvalidEchoLen
 				} else {
 					err = modbus.ErrTimeout
 				}
-			} else if len(m.buf) != 0 && !bufok && nto < 10 {
+			} else if len(m.buf[nSkip:]) != 0 && !bufok && nto < 10 {
 				nto++
 				timeout.Reset(interframeTimeout)
 				continue
