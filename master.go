@@ -94,6 +94,7 @@ var ErrUnexpectedEcho = Error("unexpected echo")
 var ErrInvalidEchoLen = Error("invalid local echo length")
 var ErrMsgTooShort = Error("msg too short")
 var ErrMsgTooLong = Error("msg too long")
+var ErrMaxReqLenExceeded = Error("max request length exceeded")
 var ErrCRC = Error("CRC error")
 
 type Bus interface {
@@ -102,17 +103,21 @@ type Bus interface {
 
 func (stk *Stack) Request(addr, fn uint8, req Request, resp Response, expectedLengths []int) (err error) {
 	w := stk.mode.MsgWriter()
-
-	w.Write([]byte{addr, fn})
+	var msgLen msgLenCounter
+	mw := io.MultiWriter(&msgLen, w)
+	mw.Write([]byte{addr, fn})
 
 	defer func() {
 		stk.RequestStats.Update(err)
 	}()
 	if req != nil {
-		err = req.Encode(w)
+		err = req.Encode(mw)
 		if err != nil {
 			return
 		}
+	}
+	if msgLen > 254 {
+		return ErrMaxReqLenExceeded
 	}
 
 	sent, err := stk.mode.Send()
@@ -172,6 +177,13 @@ func (stk *Stack) Request(addr, fn uint8, req Request, resp Response, expectedLe
 		err = resp.Decode(msg)
 	}
 	return
+}
+
+type msgLenCounter int
+
+func (lc *msgLenCounter) Write(data []byte) (int, error) {
+	*lc += msgLenCounter(len(data))
+	return len(data), nil
 }
 
 func verifyMsgLength(n int, valid []int) (err error) {
