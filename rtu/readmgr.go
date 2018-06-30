@@ -52,7 +52,7 @@ func (m *ReadMgr) Cancel() {
 	m.req <- nil
 }
 
-func (m *ReadMgr) Read(tMax, interframeTimeout time.Duration) (buf []byte, err error) {
+func (m *ReadMgr) Read(tMax, interframeTimeoutMax time.Duration) (buf []byte, err error) {
 	if m.eof {
 		err = io.EOF
 		return
@@ -62,6 +62,8 @@ func (m *ReadMgr) Read(tMax, interframeTimeout time.Duration) (buf []byte, err e
 		bufok = true
 	}
 	nto := 0
+	interframeTimeout := 1750 * time.Microsecond
+	ntoMax := int((interframeTimeoutMax + interframeTimeout - 1) / interframeTimeout)
 	timeout := time.NewTimer(tMax)
 	nSkip := 0
 readLoop:
@@ -107,7 +109,7 @@ readLoop:
 					break readLoop
 				}
 			}
-			if interframeTimeout == 0 {
+			if interframeTimeoutMax == 0 {
 				break readLoop
 			}
 			timeout.Reset(interframeTimeout)
@@ -119,7 +121,7 @@ readLoop:
 				} else {
 					err = modbus.ErrTimeout
 				}
-			} else if len(m.buf[nSkip:]) != 0 && !bufok && nto < 10 {
+			} else if len(m.buf[nSkip:]) != 0 && !bufok && nto < ntoMax {
 				nto++
 				timeout.Reset(interframeTimeout)
 				continue

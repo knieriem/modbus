@@ -55,7 +55,7 @@ func NewNetConn(conn io.ReadWriter) (m *Conn) {
 		return true
 	}
 
-	m.InterframeTimeout = 5 * time.Millisecond
+	m.InterframeTimeout = 50 * time.Millisecond
 	return
 }
 
