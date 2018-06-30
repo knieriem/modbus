@@ -18,7 +18,7 @@ type ReadMgr struct {
 	Forward     io.Writer
 	MsgComplete func([]byte) bool
 	IntrC       <-chan error
-	checkBytes  func([]byte) bool
+	checkBytes  func(bnew []byte, msg []byte) bool
 }
 
 type ReadFunc func() ([]byte, error)
@@ -71,7 +71,7 @@ readLoop:
 			nb := len(m.buf)
 			m.buf = r.data
 			if m.checkBytes != nil && m.echo == nil {
-				bufok = m.checkBytes(m.buf[nb:])
+				bufok = m.checkBytes(m.buf[nb:], m.buf[nSkip:])
 			}
 			if !timeout.Stop() {
 				<-timeout.C
@@ -88,7 +88,7 @@ readLoop:
 				if len(m.buf) >= nEcho {
 					tail := m.buf[nEcho:]
 					if m.checkBytes != nil && len(tail) != 0 {
-						bufok = m.checkBytes(tail)
+						bufok = m.checkBytes(tail, m.buf[nSkip:])
 					}
 					if !bytes.Equal(m.buf[:nEcho], m.echo) {
 						err = modbus.ErrEchoMismatch

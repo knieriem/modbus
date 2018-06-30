@@ -23,6 +23,8 @@ type Conn struct {
 	LocalEcho         bool
 	InterframeTimeout time.Duration
 	OnReceiveError    func(*Conn, error)
+
+	verifyLen func(int) error
 }
 
 func NewNetConn(conn io.ReadWriter) (m *Conn) {
@@ -42,9 +44,15 @@ func NewNetConn(conn io.ReadWriter) (m *Conn) {
 	m.ExitC = make(chan error, 1)
 	m.h = NewHash()
 	m.readMgr = NewReadMgr(rf, m.ExitC)
-	m.readMgr.checkBytes = func(b []byte) bool {
-		m.h.Write(b)
-		return m.h.Sum16() == 0
+	m.readMgr.checkBytes = func(bnew []byte, msg []byte) bool {
+		m.h.Write(bnew)
+		if m.h.Sum16() != 0 {
+			return false
+		}
+		if m.verifyLen(len(msg)-4) != nil {
+			return false
+		}
+		return true
 	}
 
 	m.InterframeTimeout = 5 * time.Millisecond
@@ -111,6 +119,7 @@ func (m *Conn) Receive(tMax time.Duration, verifyLen func(int) error) (buf, msg 
 		}()
 	}
 	m.h.Reset()
+	m.verifyLen = verifyLen
 	buf, err = m.readMgr.Read(tMax, m.InterframeTimeout)
 	if err != nil {
 		return
