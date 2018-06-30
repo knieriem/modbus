@@ -125,7 +125,7 @@ func (stk *Stack) Request(addr, fn uint8, req Request, resp Response, expectedLe
 		return
 	}
 	if stk.Tracef != nil {
-		stk.Tracef("<- %s % x\n", stk.mode.Name(), sent)
+		stk.Tracef("<- %s [%d] % x\n", stk.mode.Name(), len(sent), sent)
 	}
 	if addr == 0 {
 		time.Sleep(stk.TurnaroundDelay)
@@ -144,10 +144,10 @@ func (stk *Stack) Request(addr, fn uint8, req Request, resp Response, expectedLe
 	}
 	if stk.Tracef != nil {
 		if err != nil {
-			stk.Tracef("-> %s % x error: %v\n", stk.mode.Name(), buf, err)
+			stk.Tracef("-> %s [%d] % x error: %v\n", stk.mode.Name(), len(buf), buf, err)
 			return
 		}
-		stk.Tracef("-> %s % x\n", stk.mode.Name(), buf)
+		stk.Tracef("-> %s [%d] % x\n", stk.mode.Name(), len(buf), buf)
 	}
 	if err != nil {
 		return
