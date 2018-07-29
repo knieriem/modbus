@@ -126,7 +126,7 @@ func (m *Conn) Receive(tMax time.Duration, verifyLen func(int) error) (buf, msg 
 	}
 	n := len(buf)
 	if n < 4 {
-		err = modbus.ErrMsgTooShort
+		err = modbus.NewInvalidMsgLen(n, 4)
 		return
 	}
 	err = verifyLen(n - 4)
@@ -147,13 +147,11 @@ func (m *Conn) Receive(tMax time.Duration, verifyLen func(int) error) (buf, msg 
 // if the timeout had been a bit longer. MaybeTruncatedMsg
 // tells if the error suggests such a condition.
 func MaybeTruncatedMsg(err error) bool {
-	switch err {
-	default:
+	e, ok := err.(modbus.InvalidMsgLenError)
+	if !ok {
 		return false
-	case modbus.ErrMsgTooShort:
-	case modbus.ErrInvalidMsgLen:
 	}
-	return true
+	return !e.TooLong()
 }
 
 func (m *Conn) ReadMgr() *ReadMgr {

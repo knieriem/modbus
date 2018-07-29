@@ -35,12 +35,12 @@ type readRegistersResp struct {
 func (r *readRegistersResp) Decode(buf []byte) (err error) {
 	buf = buf[2:]
 	if len(buf) < 1 {
-		return modbus.ErrMsgTooShort
+		return modbus.NewInvalidPayloadLen(len(buf), 1)
 	}
 	r.numBytes = buf[0]
 	data := buf[1:]
 	if int(r.numBytes) != len(data) {
-		return modbus.ErrMsgTooShort
+		return modbus.NewLengthFieldMismatch(int(r.numBytes), len(data))
 	}
 	err = binary.Read(bytes.NewReader(data), modbus.ByteOrder, r.buf)
 	return

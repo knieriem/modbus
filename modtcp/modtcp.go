@@ -3,6 +3,7 @@ package modtcp
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"io"
 	"net"
 	"time"
@@ -116,7 +117,7 @@ retry:
 	}
 	n := len(buf)
 	if n < 8 {
-		err = modbus.ErrMsgTooShort
+		err = fmt.Errorf("modtcp: truncated header (have %d, want 8 bytes)", n)
 		return
 	}
 	if int(bo.Uint16(buf[hdrPosProtoID:])) != 0 {
@@ -124,12 +125,8 @@ retry:
 		return
 	}
 	length := int(bo.Uint16(buf[hdrPosLen:])) + hdrSize
-	switch {
-	case n < length:
-		err = modbus.ErrMsgTooShort
-		return
-	case n > length:
-		err = modbus.ErrMsgTooLong
+	if n != length {
+		err = modbus.NewInvalidMsgLen(n, length)
 		return
 	}
 	err = verifyLen(n - 8)

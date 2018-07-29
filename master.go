@@ -3,6 +3,7 @@ package modbus
 import (
 	"bytes"
 	"encoding/binary"
+	"fmt"
 	"io"
 	"strconv"
 	"time"
@@ -87,15 +88,53 @@ func (e Error) Error() string {
 }
 
 var ErrTimeout = Error("timeout")
-var ErrCorruptMsgLen = Error("corrupt msg length")
-var ErrInvalidMsgLen = Error("invalid msg length")
 var ErrEchoMismatch = Error("local echo mismatch")
 var ErrUnexpectedEcho = Error("unexpected echo")
 var ErrInvalidEchoLen = Error("invalid local echo length")
-var ErrMsgTooShort = Error("msg too short")
-var ErrMsgTooLong = Error("msg too long")
 var ErrMaxReqLenExceeded = Error("max request length exceeded")
 var ErrCRC = Error("CRC error")
+
+type InvalidMsgLenError struct {
+	Len         int
+	ExpectedLen []int
+}
+
+func NewInvalidPayloadLen(have int, want ...int) error {
+	for i := range want {
+		want[i] += 2
+	}
+	return &InvalidMsgLenError{Len: 2 + have, ExpectedLen: want}
+}
+
+func NewInvalidMsgLen(have int, want ...int) error {
+	return &InvalidMsgLenError{Len: have, ExpectedLen: want}
+}
+
+func NewLengthFieldMismatch(lengthField int, msgLen int) error {
+	return fmt.Errorf("length field value (%d) and msg length inconsistent (%d)", lengthField, msgLen)
+}
+
+func NewInvalidUserBufLen(have int, want int) error {
+	return fmt.Errorf("length of user provided buffer (%d), and message length (%d) inconsitent", have, want)
+}
+
+func (e InvalidMsgLenError) Error() string {
+	if e.TooLong() {
+		return fmt.Sprintf("msg too long (have %d, want %d)", e.Len, e.ExpectedLen[0])
+	}
+	if e.TooShort() {
+		return fmt.Sprintf("msg too short (have %d, want %d)", e.Len, e.ExpectedLen[0])
+	}
+	return fmt.Sprintf("invalid msg length (have %d, want &v)", e.Len, e.ExpectedLen)
+}
+
+func (e *InvalidMsgLenError) TooLong() bool {
+	return len(e.ExpectedLen) == 1 && e.Len > e.ExpectedLen[0]
+}
+
+func (e *InvalidMsgLenError) TooShort() bool {
+	return len(e.ExpectedLen) == 1 && e.Len < e.ExpectedLen[0]
+}
 
 type Bus interface {
 	Request(addr, fn uint8, req Request, resp Response, expectedLengths []int) error
@@ -163,7 +202,7 @@ func (stk *Stack) Request(addr, fn uint8, req Request, resp Response, expectedLe
 	if msg[1] == ErrorMask|fn {
 		// handle error
 		if len(msg) != 3 {
-			err = ErrCorruptMsgLen
+			err = NewInvalidMsgLen(len(msg), 3)
 			return
 		}
 		err = Exception(msg[2])
@@ -206,21 +245,20 @@ func verifyMsgLength(n int, valid []int) (err error) {
 		}
 	}
 	if n > max {
-		err = ErrMsgTooLong
+		err = NewInvalidPayloadLen(n, max)
 	} else {
-		err = ErrInvalidMsgLen
+		err = NewInvalidPayloadLen(n, valid...)
 	}
 	return
 }
 
 func MsgInvalid(err error) bool {
+	if _, ok := err.(InvalidMsgLenError); ok {
+		return true
+	}
 	switch err {
 	default:
 		return false
-	case ErrMsgTooShort:
-	case ErrMsgTooLong:
-	case ErrCorruptMsgLen:
-	case ErrInvalidMsgLen:
 	case ErrInvalidEchoLen:
 	case XGwTargetFailedToRespond:
 	case ErrCRC:

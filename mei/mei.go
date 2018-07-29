@@ -30,7 +30,7 @@ func (m *msg) Encode(w io.Writer) (err error) {
 func (m *msg) Decode(buf []byte) (err error) {
 	buf = buf[2:]
 	if len(buf) < 1 {
-		return modbus.ErrMsgTooShort
+		return modbus.NewInvalidPayloadLen(len(buf), 1)
 	}
 	if buf[0] != m.typ {
 		return modbus.Error("wrong MEI code")
