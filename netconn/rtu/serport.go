@@ -4,7 +4,7 @@ import (
 	"io"
 	"strings"
 
-	"modbus/netconn"
+	"github.com/knieriem/modbus/netconn"
 
 	"github.com/knieriem/serport"
 	"github.com/knieriem/serport/serenum"

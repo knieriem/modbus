@@ -9,8 +9,8 @@ import (
 	"strconv"
 	"strings"
 
-	"modbus"
-	"modbus/register"
+	"github.com/knieriem/modbus"
+	"github.com/knieriem/modbus/register"
 )
 
 type decoder func(interface{})

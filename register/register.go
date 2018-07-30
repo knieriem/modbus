@@ -8,7 +8,7 @@ import (
 	"strconv"
 	"strings"
 
-	"modbus"
+	"github.com/knieriem/modbus"
 )
 
 type Slave struct {

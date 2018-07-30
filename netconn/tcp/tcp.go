@@ -3,8 +3,8 @@ package tcp
 import (
 	"net"
 
-	"modbus/modtcp"
-	"modbus/netconn"
+	"github.com/knieriem/modbus/modtcp"
+	"github.com/knieriem/modbus/netconn"
 )
 
 const (

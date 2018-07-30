@@ -5,7 +5,7 @@ import (
 	"math"
 	"reflect"
 
-	"modbus"
+	"github.com/knieriem/modbus"
 )
 
 type Float32Big float32

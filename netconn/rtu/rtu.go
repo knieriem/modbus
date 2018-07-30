@@ -4,10 +4,9 @@ import (
 	"io"
 	"time"
 
-	"modbus/netconn"
-	"modbus/rtu"
-
-	"te/stream"
+	"github.com/knieriem/io/stream"
+	"github.com/knieriem/modbus/netconn"
+	"github.com/knieriem/modbus/rtu"
 )
 
 var InterframeTimeout struct {

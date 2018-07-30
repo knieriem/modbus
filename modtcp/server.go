@@ -14,7 +14,7 @@ import (
 	"net/http"
 	"time"
 
-	"modbus"
+	"github.com/knieriem/modbus"
 )
 
 // A Server defines parameters for running a Modbus/TCP server. A value

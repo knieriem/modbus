@@ -8,8 +8,8 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/knieriem/modbus"
 	"github.com/knieriem/text/tidata"
-	"modbus"
 )
 
 var protos = make(map[string]*Proto, 4)

@@ -5,7 +5,7 @@ import (
 	"io"
 	"time"
 
-	"modbus"
+	"github.com/knieriem/modbus"
 )
 
 type ReadMgr struct {

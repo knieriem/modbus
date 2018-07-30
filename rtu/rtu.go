@@ -6,9 +6,9 @@ import (
 	"os"
 	"time"
 
-	"modbus"
-	"te/hash"
-	"te/hash/crc16"
+	"github.com/knieriem/hash"
+	"github.com/knieriem/hash/crc16"
+	"github.com/knieriem/modbus"
 )
 
 type Conn struct {

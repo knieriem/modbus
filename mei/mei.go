@@ -4,7 +4,7 @@ package mei
 import (
 	"io"
 
-	"modbus"
+	"github.com/knieriem/modbus"
 )
 
 type Transport struct {

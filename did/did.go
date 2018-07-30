@@ -7,8 +7,8 @@ import (
 	"io"
 	"unicode/utf8"
 
-	"modbus"
-	"modbus/mei"
+	"github.com/knieriem/modbus"
+	"github.com/knieriem/modbus/mei"
 )
 
 type Error string

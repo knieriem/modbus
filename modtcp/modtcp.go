@@ -8,8 +8,8 @@ import (
 	"net"
 	"time"
 
-	"modbus"
-	"modbus/rtu"
+	"github.com/knieriem/modbus"
+	"github.com/knieriem/modbus/rtu"
 )
 
 const (
