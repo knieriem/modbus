@@ -12,7 +12,6 @@ import (
 
 var InterframeTimeout struct {
 	AdjustFunc func(*rtu.Conn)
-	Initial    time.Duration
 }
 
 var ConnWrapper stream.Wrapper
@@ -54,11 +53,6 @@ func dial(cf *netconn.Conf) (conn *netconn.Conn, err error) {
 			time.Sleep(10 * time.Millisecond)
 		}
 	}
-	t := nc.InterframeTimeout
-	if tifr := InterframeTimeout.Initial; tifr != 0 {
-		t = tifr
-	}
-	nc.InterframeTimeout = t
 	nc.LocalEcho = cf.LocalEcho
 
 	conn = &netconn.Conn{
