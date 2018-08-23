@@ -9,6 +9,7 @@ import (
 	"github.com/knieriem/hash"
 	"github.com/knieriem/hash/crc16"
 	"github.com/knieriem/modbus"
+	"github.com/knieriem/serport"
 )
 
 type Conn struct {
@@ -106,6 +107,9 @@ func (m *Conn) Send() (buf []byte, err error) {
 	}
 	if m.LocalEcho || localEchoSetByEnv {
 		m.readMgr.echo = buf
+	}
+	if port, ok := m.conn.(serport.Port); ok {
+		err = port.Drain()
 	}
 	return
 }

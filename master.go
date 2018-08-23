@@ -77,7 +77,7 @@ func NewStack(mode NetConn) (stk *Stack) {
 	stk = new(Stack)
 	stk.mode = mode
 	stk.ResponseTimeout = 1000 * time.Millisecond
-	stk.TurnaroundDelay = 200 * time.Millisecond
+	stk.TurnaroundDelay = 4 * time.Millisecond
 	return
 }
 
