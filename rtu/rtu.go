@@ -45,7 +45,7 @@ func NewNetConn(conn io.ReadWriter) (m *Conn) {
 	m.ExitC = make(chan error, 1)
 	m.h = NewHash()
 	m.readMgr = NewReadMgr(rf, m.ExitC)
-	m.readMgr.checkBytes = func(bnew []byte, msg []byte) bool {
+	m.readMgr.CheckBytes = func(bnew []byte, msg []byte) bool {
 		m.h.Write(bnew)
 		if m.h.Sum16() != 0 {
 			return false
