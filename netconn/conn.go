@@ -76,7 +76,7 @@ type Conn struct {
 	NetConn
 	io.Closer
 	Addr       string
-	Device     string
+	DeviceName string
 	DeviceInfo string
 	ExitC      <-chan error
 	Conf       *Conf

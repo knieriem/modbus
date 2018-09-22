@@ -62,6 +62,7 @@ type NetConn interface {
 	MsgWriter() io.Writer
 	Send() ([]byte, error)
 	Receive(timeout time.Duration, verifyLen func(int) error) (buf, msg []byte, err error)
+	Device() interface{}
 }
 
 type Stack struct {
@@ -79,6 +80,10 @@ func NewStack(mode NetConn) (stk *Stack) {
 	stk.ResponseTimeout = 1000 * time.Millisecond
 	stk.TurnaroundDelay = 4 * time.Millisecond
 	return
+}
+
+func (stk *Stack) Device() interface{} {
+	return stk.mode.Device()
 }
 
 type Error string

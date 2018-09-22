@@ -77,6 +77,10 @@ func (m *Conn) Name() string {
 	return "tcp"
 }
 
+func (m *Conn) Device() interface{} {
+	return m.conn
+}
+
 func (m *Conn) MsgWriter() (w io.Writer) {
 	b := m.buf
 	b.Reset()

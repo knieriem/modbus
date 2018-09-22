@@ -56,7 +56,7 @@ func dial(cf *netconn.Conf) (conn *netconn.Conn, err error) {
 
 	conn = &netconn.Conn{
 		Addr:       cf.MakeAddr(name, supportsOptions),
-		Device:     name,
+		DeviceName: name,
 		DeviceInfo: portInfo(name),
 		NetConn:    nc,
 		Closer:     f,
