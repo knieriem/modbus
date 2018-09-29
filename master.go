@@ -258,7 +258,7 @@ func verifyMsgLength(n int, valid []int) (err error) {
 }
 
 func MsgInvalid(err error) bool {
-	if _, ok := err.(InvalidMsgLenError); ok {
+	if _, ok := err.(*InvalidMsgLenError); ok {
 		return true
 	}
 	switch err {
