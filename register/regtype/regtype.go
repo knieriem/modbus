@@ -13,6 +13,22 @@ import (
 	"github.com/knieriem/modbus/register"
 )
 
+type ModifierFunc func(BaseValue) (v BaseValue, isText bool)
+
+type BaseValue interface {
+	baseValue
+}
+
+var modMap map[string]ModifierFunc
+
+func RegisterModifier(name string, f ModifierFunc) {
+	if modMap == nil {
+		modMap = make(map[string]ModifierFunc, 1)
+	}
+	fmt.Println("registering", name, f)
+	modMap[name] = f
+}
+
 type decoder func(interface{})
 
 type def struct {
@@ -494,6 +510,7 @@ type Item struct {
 	div       uint
 	divDigits int
 	typeName  string
+	mf        ModifierFunc
 }
 
 func parseTypeSpec(s string) (item Item, err error) {
@@ -544,10 +561,10 @@ func parseType(s string) (item Item, err error) {
 		}
 		item.n = int(n64)
 	}
-	if i := strings.LastIndex(typeName, "/"); i != -1 {
+	if i := strings.LastIndexByte(typeName, '/'); i != -1 {
 		divstr := typeName[i:]
 		typeName = typeName[:i]
-		if i := strings.LastIndex(divstr, "%"); i != -1 {
+		if i := strings.LastIndexByte(divstr, '%'); i != -1 {
 			item.fmt = divstr[i:]
 			divstr = divstr[:i]
 		}
@@ -575,6 +592,15 @@ func parseType(s string) (item Item, err error) {
 		}
 	} else if i := strings.LastIndex(typeName, "%"); i != -1 {
 		item.fmt = typeName[i:]
+		typeName = typeName[:i]
+	}
+	if i := strings.IndexByte(typeName, '.'); i != -1 {
+		mod := typeName[i+1:]
+		mf, ok := modMap[mod]
+		if !ok {
+			return item, errors.New("unknown modifier: " + strconv.Quote(mod))
+		}
+		item.mf = mf
 		typeName = typeName[:i]
 	}
 	item.typeName = typeName
@@ -659,11 +685,17 @@ func Decode(b []byte, list []Item) (vlist []Value) {
 		v := reflect.ValueOf(sl)
 		for i := 0; i < item.n; i++ {
 			val := v.Index(i).Interface().(baseValue)
-			if item.div != 0 {
-				val = &divValue{div: item.div, baseValue: val, prec: item.divDigits}
+			isText := false
+			if mf := item.mf; mf != nil {
+				val, isText = item.mf(val)
 			}
-			if item.fmt != "" {
-				val = &fmtValue{fmt: item.fmt, baseValue: val}
+			if !isText {
+				if item.div != 0 {
+					val = &divValue{div: item.div, baseValue: val, prec: item.divDigits}
+				}
+				if item.fmt != "" {
+					val = &fmtValue{fmt: item.fmt, baseValue: val}
+				}
 			}
 			vlist = append(vlist, Value{val})
 		}
