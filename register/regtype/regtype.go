@@ -25,7 +25,6 @@ func RegisterModifier(name string, f ModifierFunc) {
 	if modMap == nil {
 		modMap = make(map[string]ModifierFunc, 1)
 	}
-	fmt.Println("registering", name, f)
 	modMap[name] = f
 }
 
