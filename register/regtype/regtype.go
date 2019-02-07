@@ -13,7 +13,7 @@ import (
 	"github.com/knieriem/modbus/register"
 )
 
-type ModifierFunc func(BaseValue) (v BaseValue, isText bool)
+type ModifierFunc func(BaseValue) BaseValue
 
 type BaseValue interface {
 	baseValue
@@ -684,11 +684,10 @@ func Decode(b []byte, list []Item) (vlist []Value) {
 		v := reflect.ValueOf(sl)
 		for i := 0; i < item.n; i++ {
 			val := v.Index(i).Interface().(baseValue)
-			isText := false
 			if mf := item.mf; mf != nil {
-				val, isText = item.mf(val)
+				val = item.mf(val)
 			}
-			if !isText {
+			if InbandErr(val) == nil {
 				if item.div != 0 {
 					val = &divValue{div: item.div, baseValue: val, prec: item.divDigits}
 				}
@@ -700,4 +699,39 @@ func Decode(b []byte, list []Item) (vlist []Value) {
 		}
 	}
 	return
+}
+
+type InbandError interface {
+	Err() error
+}
+
+func InbandErr(v BaseValue) error {
+	if e, ok := v.(InbandError); ok {
+		return e.Err()
+	}
+	return nil
+}
+
+var ErrValNone = ErrStr("noValue")
+var ErrValUnspecified = ErrStr("")
+
+type ErrStr string
+
+func (s ErrStr) Format() string {
+	if s == "" {
+		return "err"
+	}
+	return "err." + string(s)
+}
+
+func (s ErrStr) Value() interface{} {
+	return string(s)
+}
+
+func (s ErrStr) Err() error {
+	return s
+}
+
+func (s ErrStr) Error() string {
+	return s.Format()
 }
