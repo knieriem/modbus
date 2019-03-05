@@ -50,6 +50,10 @@ func (v Value) String() string {
 	return v.Format()
 }
 
+func (v Value) Err() error {
+	return inbandErr(v.baseValue)
+}
+
 // Schreibweise mit %format !!!!!
 
 var types = map[string]def{
@@ -687,7 +691,7 @@ func Decode(b []byte, list []Item) (vlist []Value) {
 			if mf := item.mf; mf != nil {
 				val = item.mf(val)
 			}
-			if InbandErr(val) == nil {
+			if inbandErr(val) == nil {
 				if item.div != 0 {
 					val = &divValue{div: item.div, baseValue: val, prec: item.divDigits}
 				}
@@ -701,15 +705,31 @@ func Decode(b []byte, list []Item) (vlist []Value) {
 	return
 }
 
-type InbandError interface {
+type inbandError interface {
 	Err() error
 }
 
-func InbandErr(v BaseValue) error {
-	if e, ok := v.(InbandError); ok {
+func inbandErr(v BaseValue) error {
+	if e, ok := v.(inbandError); ok {
 		return e.Err()
 	}
 	return nil
+}
+
+func AttachErr(v BaseValue, err error) BaseValue {
+	return &baseValueWithErr{
+		baseValue: v,
+		error:     err,
+	}
+}
+
+type baseValueWithErr struct {
+	baseValue
+	error
+}
+
+func (ev *baseValueWithErr) Err() error {
+	return ev.error
 }
 
 var ErrValNone = ErrStr("noValue")
@@ -717,21 +737,13 @@ var ErrValUnspecified = ErrStr("")
 
 type ErrStr string
 
-func (s ErrStr) Format() string {
+func (s ErrStr) String() string {
 	if s == "" {
 		return "err"
 	}
 	return "err." + string(s)
 }
 
-func (s ErrStr) Value() interface{} {
-	return string(s)
-}
-
-func (s ErrStr) Err() error {
-	return s
-}
-
 func (s ErrStr) Error() string {
-	return s.Format()
+	return s.String()
 }
