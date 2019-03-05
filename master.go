@@ -105,10 +105,11 @@ type InvalidMsgLenError struct {
 }
 
 func NewInvalidPayloadLen(have int, want ...int) error {
+	wcpy := make([]int, len(want))
 	for i := range want {
-		want[i] += 2
+		wcpy[i] = want[i] + 2
 	}
-	return &InvalidMsgLenError{Len: 2 + have, ExpectedLen: want}
+	return &InvalidMsgLenError{Len: 2 + have, ExpectedLen: wcpy}
 }
 
 func NewInvalidMsgLen(have int, want ...int) error {
@@ -130,7 +131,7 @@ func (e InvalidMsgLenError) Error() string {
 	if e.TooShort() {
 		return fmt.Sprintf("msg too short (have %d, want %d)", e.Len, e.ExpectedLen[0])
 	}
-	return fmt.Sprintf("invalid msg length (have %d, want &v)", e.Len, e.ExpectedLen)
+	return fmt.Sprintf("invalid msg length (have %d, want %v)", e.Len, e.ExpectedLen)
 }
 
 func (e *InvalidMsgLenError) TooLong() bool {
