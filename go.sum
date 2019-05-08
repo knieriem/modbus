@@ -1,3 +1,5 @@
+github.com/h2so5/half v0.0.0-20170106005425-c705bde19bd0 h1:IajCRo241MK+T3L0fm2GhlBJp6xgGfy8rhxkeLoZs8Q=
+github.com/h2so5/half v0.0.0-20170106005425-c705bde19bd0/go.mod h1:ZAKroyK9OrmtO2/UJY0vAPRPATpjJItVSF0o6cqYTt8=
 github.com/knieriem/g v0.1.0/go.mod h1:Cxrkopw+HrVRIxTQzwKvLf0zImHa1q6L0RUElAh3a9k=
 github.com/knieriem/g v0.1.1 h1:is3tzbmMowECdGO6pfaiWHw3Pb8X+eweyq6Q8x7x29M=
 github.com/knieriem/g v0.1.1/go.mod h1:Cxrkopw+HrVRIxTQzwKvLf0zImHa1q6L0RUElAh3a9k=

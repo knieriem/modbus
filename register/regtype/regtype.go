@@ -11,6 +11,8 @@ import (
 
 	"github.com/knieriem/modbus"
 	"github.com/knieriem/modbus/register"
+
+	"github.com/h2so5/half"
 )
 
 type ModifierFunc func(BaseValue) BaseValue
@@ -61,6 +63,11 @@ var types = map[string]def{
 		makeSlice: makeFloat32,
 		parse:     newFloat32,
 		size:      2,
+	},
+	"f16": {
+		makeSlice: makeFloat16,
+		parse:     newFloat16,
+		size:      1,
 	},
 	"f32": {
 		makeSlice: makeFloat32,
@@ -311,6 +318,32 @@ func newInt64(s string) (v baseValue, err error) {
 	}
 	v = Int64(n)
 	return
+}
+
+type Float16 uint16
+
+func (f Float16) Format() string {
+	return strconv.FormatFloat(float64(f.float32()), 'g', -1, 32)
+}
+
+func (f Float16) Value() interface{} {
+	return f.float32()
+}
+
+func (f Float16) float32() float32 {
+	return half.Float16(f).Float32()
+}
+
+func makeFloat16(n int) interface{} {
+	return make([]Float16, n)
+}
+
+func newFloat16(s string) (v baseValue, err error) {
+	f, err := strconv.ParseFloat(s, 32)
+	if err != nil {
+		return
+	}
+	return Float16(half.NewFloat16(float32(f))), nil
 }
 
 type Float32 float32
