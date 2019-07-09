@@ -143,15 +143,31 @@ func (e *InvalidMsgLenError) TooShort() bool {
 }
 
 type Bus interface {
-	Request(addr, fn uint8, req Request, resp Response, expectedLengths []int) error
+	Request(addr, fn uint8, req Request, resp Response, opts ...ReqOption) error
 }
 
-func (stk *Stack) Request(addr, fn uint8, req Request, resp Response, expectedLengths []int) (err error) {
+type ReqOption func(*reqOptions)
+
+type reqOptions struct {
+	expectedLengths []int
+}
+
+func ExpectedRespPayloadLen(n int) ReqOption {
+	return func(r *reqOptions) {
+		r.expectedLengths = []int{n}
+	}
+}
+
+func (stk *Stack) Request(addr, fn uint8, req Request, resp Response, opts ...ReqOption) (err error) {
 	w := stk.mode.MsgWriter()
 	var msgLen msgLenCounter
 	mw := io.MultiWriter(&msgLen, w)
 	mw.Write([]byte{addr, fn})
 
+	var rqo reqOptions
+	for _, o := range opts {
+		o(&rqo)
+	}
 	defer func() {
 		stk.RequestStats.Update(err)
 	}()
@@ -178,7 +194,7 @@ func (stk *Stack) Request(addr, fn uint8, req Request, resp Response, expectedLe
 	}
 
 	verifyRespLen := func(n int) error {
-		return verifyMsgLength(n, expectedLengths)
+		return verifyMsgLength(n, rqo.expectedLengths)
 	}
 
 	buf, msg, err := stk.mode.Receive(stk.ResponseTimeout, verifyRespLen)
@@ -229,6 +245,11 @@ type msgLenCounter int
 func (lc *msgLenCounter) Write(data []byte) (int, error) {
 	*lc += msgLenCounter(len(data))
 	return len(data), nil
+}
+
+type ExpectedRespLenSpec struct {
+	Len           uint8
+	LenPerSubfunc map[uint8]uint8
 }
 
 func verifyMsgLength(n int, valid []int) (err error) {

@@ -144,7 +144,7 @@ func (srv *Server) handleConn(c *conn) error {
 
 		fn := msg[0]
 		resp := resp[:hdrSize]
-		err = srv.Bus.Request(unit, fn, rawMsg(msg[1:]), &resp, nil)
+		err = srv.Bus.Request(unit, fn, rawMsg(msg[1:]), &resp)
 		if err != nil {
 			switch e := err.(type) {
 			case modbus.Exception:

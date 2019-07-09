@@ -1,7 +1,7 @@
 package modbus
 
 type Slave interface {
-	Request(fn uint8, req Request, resp Response, expectedLengths []int) error
+	Request(fn uint8, req Request, resp Response, opts ...ReqOption) error
 }
 
 type StdRegisterFuncs interface {
@@ -21,8 +21,8 @@ func newAddressedSlave(bus Bus) *addressedSlave {
 	return a
 }
 
-func (sl *addressedSlave) Request(fn uint8, req Request, resp Response, expectedLengths []int) error {
-	return sl.bus.Request(sl.addr, fn, req, resp, expectedLengths)
+func (sl *addressedSlave) Request(fn uint8, req Request, resp Response, opts ...ReqOption) error {
+	return sl.bus.Request(sl.addr, fn, req, resp, opts...)
 }
 
 type SlaveTestFunc func(addr byte, sl Slave) error

@@ -64,7 +64,8 @@ func (sl *Slave) readRegs(fn uint8, startAddr uint16, dest interface{}) (err err
 		return
 	}
 	resp.buf = dest
-	err = sl.Request(fn, &readRegisters{Start: startAddr, N: nReg}, &resp, []int{nBytes + 1})
+	expected := modbus.ExpectedRespPayloadLen(nBytes + 1)
+	err = sl.Request(fn, &readRegisters{Start: startAddr, N: nReg}, &resp, expected)
 	return
 }
 
@@ -98,7 +99,8 @@ func (sl *Slave) WriteReg(regAddr uint16, data interface{}) (err error) {
 		return
 	}
 	value := modbus.ByteOrder.Uint16(buf.Bytes())
-	err = sl.Request(6, &singleReg{Addr: regAddr, Value: value}, nil, []int{4})
+	expected := modbus.ExpectedRespPayloadLen(4)
+	err = sl.Request(6, &singleReg{Addr: regAddr, Value: value}, nil, expected)
 	return
 }
 
@@ -134,7 +136,8 @@ func (sl *Slave) WriteRegs(startAddr uint16, data interface{}) (err error) {
 		err = sl.WriteReg(startAddr, data)
 		return
 	}
-	err = sl.Request(0x10, &multipleRegs{Addr: startAddr, NRegs: nReg, NBytes: uint8(nBytes), Values: data}, nil, []int{4})
+	expected := modbus.ExpectedRespPayloadLen(4)
+	err = sl.Request(0x10, &multipleRegs{Addr: startAddr, NRegs: nReg, NBytes: uint8(nBytes), Values: data}, nil, expected)
 	return
 }
 

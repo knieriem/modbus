@@ -46,8 +46,8 @@ func (m *msg) Decode(buf []byte) (err error) {
 	return
 }
 
-func (t *Transport) Request(req []byte) (resp []byte, err error) {
-	err = t.sl.Request(0x2B, &msg{typ: t.typ, data: req}, &t.respBuf, nil)
+func (t *Transport) Request(req []byte, opts ...modbus.ReqOption) (resp []byte, err error) {
+	err = t.sl.Request(0x2B, &msg{typ: t.typ, data: req}, &t.respBuf, opts...)
 	if err != nil {
 		return
 	}
