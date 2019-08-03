@@ -61,7 +61,7 @@ type NetConn interface {
 	Name() string
 	MsgWriter() io.Writer
 	Send() ([]byte, error)
-	Receive(timeout time.Duration, verifyLen func(int) error) (buf, msg []byte, err error)
+	Receive(timeout time.Duration, ls *ExpectedRespLenSpec) (buf, msg []byte, err error)
 	Device() interface{}
 }
 
@@ -149,13 +149,26 @@ type Bus interface {
 type ReqOption func(*reqOptions)
 
 type reqOptions struct {
-	expectedLengths []int
+	expectedLenSpec *ExpectedRespLenSpec
 }
 
 func ExpectedRespPayloadLen(n int) ReqOption {
-	return func(r *reqOptions) {
-		r.expectedLengths = []int{n}
+	if n > 0 {
+		n += 2
 	}
+	return func(r *reqOptions) {
+		r.expectedLenSpec = &ExpectedRespLenSpec{ValidLen: []int{n}}
+	}
+}
+
+func ExpectedRespLengths(l []int) ReqOption {
+	return func(r *reqOptions) {
+		r.expectedLenSpec = &ExpectedRespLenSpec{ValidLen: l}
+	}
+}
+
+type ExpectedRespLenSpec struct {
+	ValidLen []int
 }
 
 func (stk *Stack) Request(addr, fn uint8, req Request, resp Response, opts ...ReqOption) (err error) {
@@ -193,11 +206,7 @@ func (stk *Stack) Request(addr, fn uint8, req Request, resp Response, opts ...Re
 		return
 	}
 
-	verifyRespLen := func(n int) error {
-		return verifyMsgLength(n, rqo.expectedLengths)
-	}
-
-	buf, msg, err := stk.mode.Receive(stk.ResponseTimeout, verifyRespLen)
+	buf, msg, err := stk.mode.Receive(stk.ResponseTimeout, rqo.expectedLenSpec)
 	if err != nil {
 		if bytes.Equal(buf, sent) {
 			err = ErrUnexpectedEcho
@@ -213,9 +222,11 @@ func (stk *Stack) Request(addr, fn uint8, req Request, resp Response, opts ...Re
 	if err != nil {
 		return
 	}
-	err = verifyRespLen(len(msg) - 2)
-	if err != nil {
-		return
+	if ls := rqo.expectedLenSpec; ls != nil {
+		err = ls.CheckLen(msg)
+		if err != nil {
+			return
+		}
 	}
 	if msg[0] != addr {
 		err = Error("response: addr mismatch")
@@ -247,36 +258,36 @@ func (lc *msgLenCounter) Write(data []byte) (int, error) {
 	return len(data), nil
 }
 
-type ExpectedRespLenSpec struct {
-	Len           uint8
-	LenPerSubfunc map[uint8]uint8
-}
-
-func verifyMsgLength(n int, valid []int) (err error) {
-	if valid == nil {
-		return
+func (ls *ExpectedRespLenSpec) CheckLen(frame []byte) error {
+	if ls == nil {
+		return nil
 	}
-	if n == 1 {
-		return // might be an error response
+	valid := ls.ValidLen
+	if valid == nil {
+		return nil
+	}
+	n := len(frame)
+	if n == 3 {
+		return nil // might be an error response
 	}
 	max := 0
 	for i, l := range valid {
 		if i > 0 && l == 0 {
-			return // any length allowed
+			return nil // any length allowed
 		}
 		if l == n {
-			return
+			return nil
 		}
 		if l > max {
 			max = l
 		}
 	}
 	if n > max {
-		err = NewInvalidPayloadLen(n, max)
+		return NewInvalidPayloadLen(n, max)
 	} else {
-		err = NewInvalidPayloadLen(n, valid...)
+		return NewInvalidPayloadLen(n, valid...)
 	}
-	return
+	return nil
 }
 
 func MsgInvalid(err error) bool {

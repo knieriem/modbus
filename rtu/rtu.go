@@ -25,7 +25,7 @@ type Conn struct {
 	InterframeTimeout time.Duration
 	OnReceiveError    func(*Conn, error)
 
-	verifyLen func(int) error
+	expectedLenSpec *modbus.ExpectedRespLenSpec
 }
 
 func NewNetConn(conn io.ReadWriter) (m *Conn) {
@@ -50,7 +50,7 @@ func NewNetConn(conn io.ReadWriter) (m *Conn) {
 		if m.h.Sum16() != 0 {
 			return false
 		}
-		if m.verifyLen(len(msg)-4) != nil {
+		if m.expectedLenSpec.CheckLen(msg[:len(msg)-2]) != nil {
 			return false
 		}
 		return true
@@ -118,7 +118,7 @@ func (m *Conn) Send() (buf []byte, err error) {
 	return
 }
 
-func (m *Conn) Receive(tMax time.Duration, verifyLen func(int) error) (buf, msg []byte, err error) {
+func (m *Conn) Receive(tMax time.Duration, ls *modbus.ExpectedRespLenSpec) (buf, msg []byte, err error) {
 	if f := m.OnReceiveError; f != nil {
 		defer func() {
 			if err != nil {
@@ -127,7 +127,7 @@ func (m *Conn) Receive(tMax time.Duration, verifyLen func(int) error) (buf, msg 
 		}()
 	}
 	m.h.Reset()
-	m.verifyLen = verifyLen
+	m.expectedLenSpec = ls
 	buf, err = m.readMgr.Read(tMax, m.InterframeTimeout)
 	if err != nil {
 		return
@@ -137,7 +137,7 @@ func (m *Conn) Receive(tMax time.Duration, verifyLen func(int) error) (buf, msg 
 		err = modbus.NewInvalidMsgLen(n, 4)
 		return
 	}
-	err = verifyLen(n - 4)
+	err = ls.CheckLen(buf[:n-2])
 	if err != nil {
 		return
 	}

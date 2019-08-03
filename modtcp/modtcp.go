@@ -106,7 +106,7 @@ func (m *Conn) Send() (buf []byte, err error) {
 	return
 }
 
-func (m *Conn) Receive(tMax time.Duration, verifyLen func(int) error) (buf, msg []byte, err error) {
+func (m *Conn) Receive(tMax time.Duration, ls *modbus.ExpectedRespLenSpec) (buf, msg []byte, err error) {
 	if f := m.OnReceiveError; f != nil {
 		defer func() {
 			if err != nil {
@@ -133,7 +133,7 @@ retry:
 		err = modbus.NewInvalidMsgLen(n, length)
 		return
 	}
-	err = verifyLen(n - 8)
+	err = ls.CheckLen(buf[hdrSize:])
 	if err != nil {
 		return
 	}
