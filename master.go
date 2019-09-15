@@ -283,9 +283,9 @@ func (ls *ExpectedRespLenSpec) CheckLen(frame []byte) error {
 		}
 	}
 	if n > max {
-		return NewInvalidPayloadLen(n, max)
+		return NewInvalidMsgLen(n, max)
 	} else {
-		return NewInvalidPayloadLen(n, valid...)
+		return NewInvalidMsgLen(n, valid...)
 	}
 	return nil
 }
