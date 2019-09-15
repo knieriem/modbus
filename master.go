@@ -194,6 +194,9 @@ func (stk *Stack) Request(addr, fn uint8, req Request, resp Response, opts ...Re
 	mw.Write([]byte{addr, fn})
 
 	var rqo reqOptions
+	if i, ok := resp.(interface{ ExpectedLenSpec() *ExpectedRespLenSpec }); ok {
+		rqo.expectedLenSpec = i.ExpectedLenSpec()
+	}
 	for _, o := range opts {
 		o(&rqo)
 	}
