@@ -169,6 +169,22 @@ func ExpectedRespLengths(l []int) ReqOption {
 
 type ExpectedRespLenSpec struct {
 	ValidLen []int
+	Variable *VariableRespLenSpec
+}
+
+type VariableRespLenSpec struct {
+	PrefixLen     int
+	NumItemsFixed int
+	NumItemsIndex int
+	ItemLenIndex  int
+	ItemTailLen   int
+	TailLen       int
+}
+
+func VariableRespLen(vs *VariableRespLenSpec) ReqOption {
+	return func(r *reqOptions) {
+		r.expectedLenSpec = &ExpectedRespLenSpec{Variable: vs}
+	}
 }
 
 func (stk *Stack) Request(addr, fn uint8, req Request, resp Response, opts ...ReqOption) (err error) {
@@ -270,6 +286,12 @@ func (ls *ExpectedRespLenSpec) CheckLen(frame []byte) error {
 	}
 	valid := ls.ValidLen
 	if valid == nil {
+		if v := ls.Variable; v != nil {
+			expectedLen, ok := v.Match(frame)
+			if !ok {
+				return NewInvalidMsgLen(n, expectedLen)
+			}
+		}
 		return nil
 	}
 	max := 0
@@ -290,6 +312,32 @@ func (ls *ExpectedRespLenSpec) CheckLen(frame []byte) error {
 		return NewInvalidMsgLen(n, valid...)
 	}
 	return nil
+}
+
+func (v *VariableRespLenSpec) Match(frame []byte) (expectedLen int, match bool) {
+	n := len(frame)
+	nx := 0
+	ni := v.NumItemsFixed
+	if ni == 0 {
+		nx += v.NumItemsIndex + 1
+		if n < nx {
+			return nx, false
+		}
+		ni = int(frame[nx-1])
+	}
+	nx += v.PrefixLen
+	if n < nx {
+		return nx, false
+	}
+	for i := 0; i < ni; i++ {
+		nx += v.ItemLenIndex + 1
+		if n < nx {
+			return nx, false
+		}
+		nx += int(frame[nx-1]) + v.ItemTailLen
+	}
+	nx += v.TailLen
+	return nx, n == nx
 }
 
 func MsgInvalid(err error) bool {
