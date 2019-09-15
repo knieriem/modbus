@@ -275,7 +275,7 @@ func (ls *ExpectedRespLenSpec) CheckLen(frame []byte) error {
 	max := 0
 	for i, l := range valid {
 		if i > 0 && l == 0 {
-			return nil // any length allowed
+			return nil // allow any length
 		}
 		if l == n {
 			return nil
