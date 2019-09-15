@@ -262,13 +262,15 @@ func (ls *ExpectedRespLenSpec) CheckLen(frame []byte) error {
 	if ls == nil {
 		return nil
 	}
+	n := len(frame)
+	if n == 3 {
+		if frame[1]&0x80 != 0 {
+			return nil // is an exception response
+		}
+	}
 	valid := ls.ValidLen
 	if valid == nil {
 		return nil
-	}
-	n := len(frame)
-	if n == 3 {
-		return nil // might be an error response
 	}
 	max := 0
 	for i, l := range valid {
