@@ -693,6 +693,17 @@ type encOptions struct {
 	byteOrder binary.ByteOrder
 }
 
+// LittleEndianHack reverses the byte order for all types.
+// For some slave implementations, the 16-bit register byte order,
+// contrary to the Modbus specification, is assumed to be little endian.
+// With this hack communicating with these slaves remains possible
+// without providing special little-endian types. Use with caution.
+func LittleEndianHack() EncodingOption {
+	return func(o *encOptions) {
+		o.byteOrder = binary.LittleEndian
+	}
+}
+
 func Encode(b []byte, vlist []Value, opts ...EncodingOption) (err error) {
 	e := setupEncOptions(opts)
 	w := bytes.NewBuffer(b[:0])
