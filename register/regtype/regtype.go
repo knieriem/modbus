@@ -687,10 +687,17 @@ func ParseSpecs(specs []string) (list []Item, nBytes int, err error) {
 	return
 }
 
-func Encode(b []byte, vlist []Value) (err error) {
+type EncodingOption func(*encOptions)
+
+type encOptions struct {
+	byteOrder binary.ByteOrder
+}
+
+func Encode(b []byte, vlist []Value, opts ...EncodingOption) (err error) {
+	e := setupEncOptions(opts)
 	w := bytes.NewBuffer(b[:0])
 	for _, v := range vlist {
-		err = binary.Write(w, modbus.ByteOrder, v.baseValue)
+		err = binary.Write(w, e.byteOrder, v.baseValue)
 		if err != nil {
 			return
 		}
@@ -698,7 +705,9 @@ func Encode(b []byte, vlist []Value) (err error) {
 	return
 }
 
-func Decode(b []byte, list []Item) (vlist []Value) {
+func Decode(b []byte, list []Item, opts ...EncodingOption) (vlist []Value) {
+	e := setupEncOptions(opts)
+
 	r := bytes.NewReader(b)
 
 	/* pre-allocate vlist */
@@ -710,7 +719,7 @@ func Decode(b []byte, list []Item) (vlist []Value) {
 
 	for _, item := range list {
 		sl := item.makeSlice(item.n)
-		err := binary.Read(r, modbus.ByteOrder, sl)
+		err := binary.Read(r, e.byteOrder, sl)
 		if err != nil {
 			return
 		}
@@ -736,6 +745,16 @@ func Decode(b []byte, list []Item) (vlist []Value) {
 		}
 	}
 	return
+}
+
+func setupEncOptions(opts []EncodingOption) *encOptions {
+	var e encOptions
+
+	e.byteOrder = modbus.ByteOrder
+	for _, o := range opts {
+		o(&e)
+	}
+	return &e
 }
 
 type inbandError interface {
