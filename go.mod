@@ -7,3 +7,5 @@ require (
 	github.com/knieriem/serport v0.1.2
 	github.com/knieriem/text v0.1.1
 )
+
+go 1.13
