@@ -79,7 +79,7 @@ func (sl *Slave) ReadInputRegs(startReg uint16, dest interface{}) error {
 
 type singleReg struct {
 	Addr  uint16
-	Value uint16
+	Value [2]byte
 }
 
 func (r *singleReg) Encode(w io.Writer) (err error) {
@@ -88,9 +88,10 @@ func (r *singleReg) Encode(w io.Writer) (err error) {
 }
 
 func (sl *Slave) WriteReg(regAddr uint16, data interface{}) (err error) {
-	var buf bytes.Buffer
+	var value [2]byte
 
-	err = binary.Write(&buf, modbus.ByteOrder, data)
+	buf := bytes.NewBuffer(value[:0])
+	err = binary.Write(buf, modbus.ByteOrder, data)
 	if err != nil {
 		return
 	}
@@ -98,7 +99,7 @@ func (sl *Slave) WriteReg(regAddr uint16, data interface{}) (err error) {
 		err = errors.New("the size of the data buffer must be two bytes")
 		return
 	}
-	value := modbus.ByteOrder.Uint16(buf.Bytes())
+	copy(value[:], buf.Bytes())
 	expected := modbus.ExpectedRespPayloadLen(4)
 	err = sl.Request(6, &singleReg{Addr: regAddr, Value: value}, nil, expected)
 	return
