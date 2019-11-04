@@ -311,10 +311,8 @@ func (ls *ExpectedRespLenSpec) CheckLen(frame []byte) error {
 	}
 	if n > max {
 		return NewInvalidMsgLen(n, max)
-	} else {
-		return NewInvalidMsgLen(n, valid...)
 	}
-	return nil
+	return NewInvalidMsgLen(n, valid...)
 }
 
 func (v *VariableRespLenSpec) Match(frame []byte) (expectedLen int, match bool) {
