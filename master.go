@@ -99,6 +99,39 @@ var ErrInvalidEchoLen = Error("invalid local echo length")
 var ErrMaxReqLenExceeded = Error("max request length exceeded")
 var ErrCRC = Error("CRC error")
 
+type MismatchError struct {
+	Req     MsgHdr
+	Resp    MsgHdr
+	origErr error
+}
+
+func (e *MismatchError) Error() string {
+	var s string
+	if e.Req[0] != e.Resp[0] {
+		s = "addr"
+	} else {
+		s = "fn code"
+	}
+	return fmt.Sprintf("modbus: %s mismatch (expected: %v, got: %v)", s, e.Req, e.Resp)
+}
+
+func (e *MismatchError) Unwrap() error {
+	return e.origErr
+}
+
+type MsgHdr [2]byte
+
+func (h MsgHdr) String() string {
+	return fmt.Sprintf("% x", h[:])
+}
+
+func (h MsgHdr) matchAddr(h2 MsgHdr) bool {
+	return h[0] == h2[0]
+}
+func (h MsgHdr) matchFn(h2 MsgHdr) bool {
+	return h[1] == h2[1] || (ErrorMask|h[1]) == h2[1]
+}
+
 type InvalidMsgLenError struct {
 	Len         int
 	ExpectedLen []int
@@ -226,9 +259,15 @@ func (stk *Stack) Request(addr, fn uint8, req Request, resp Response, opts ...Re
 	}
 
 	buf, msg, err := stk.mode.Receive(stk.ResponseTimeout, rqo.expectedLenSpec)
-	if err != nil {
-		if bytes.Equal(buf, sent) {
-			err = ErrUnexpectedEcho
+	if len(buf) >= 2 {
+		want := MsgHdr{addr, fn}
+		have := MsgHdr{buf[0], buf[1]}
+		if !want.matchAddr(have) || !want.matchFn(have) {
+			err = &MismatchError{Req: want, Resp: have, origErr: err}
+		} else if err != nil {
+			if bytes.Equal(buf, sent) {
+				err = ErrUnexpectedEcho
+			}
 		}
 	}
 	if stk.Tracef != nil {
@@ -246,10 +285,6 @@ func (stk *Stack) Request(addr, fn uint8, req Request, resp Response, opts ...Re
 		if err != nil {
 			return
 		}
-	}
-	if msg[0] != addr {
-		err = Error("response: addr mismatch")
-		return
 	}
 	if msg[1] == ErrorMask|fn {
 		// handle error
@@ -343,6 +378,9 @@ func (v *VariableRespLenSpec) Match(frame []byte) (expectedLen int, match bool) 
 
 func MsgInvalid(err error) bool {
 	if _, ok := err.(*InvalidMsgLenError); ok {
+		return true
+	}
+	if _, ok := err.(*MismatchError); ok {
 		return true
 	}
 	switch err {
