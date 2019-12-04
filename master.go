@@ -182,8 +182,12 @@ type Bus interface {
 type ReqOption func(*reqOptions)
 
 type reqOptions struct {
-	timeout         time.Duration
-	expectedLenSpec *ExpectedRespLenSpec
+	timeout                time.Duration
+	timeoutIncr            time.Duration
+	nRetriesOnTimeout      int
+	nRetriesOnInvalidReply int
+	retryDelay             time.Duration
+	expectedLenSpec        *ExpectedRespLenSpec
 }
 
 func ExpectedRespPayloadLen(n int) ReqOption {
@@ -204,6 +208,20 @@ func ExpectedRespLengths(l []int) ReqOption {
 func WithTimeout(d time.Duration) ReqOption {
 	return func(r *reqOptions) {
 		r.timeout = d
+	}
+}
+
+func RetryOnTimeout(n int, timeoutIncr time.Duration) ReqOption {
+	return func(r *reqOptions) {
+		r.nRetriesOnTimeout = n
+		r.timeoutIncr = timeoutIncr
+	}
+}
+
+func RetryOnInvalidReply(n int, retryDelay time.Duration) ReqOption {
+	return func(r *reqOptions) {
+		r.nRetriesOnInvalidReply = n
+		r.retryDelay = retryDelay
 	}
 }
 
@@ -228,11 +246,6 @@ func VariableRespLen(vs *VariableRespLenSpec) ReqOption {
 }
 
 func (stk *Stack) Request(addr, fn uint8, req Request, resp Response, opts ...ReqOption) (err error) {
-	w := stk.mode.MsgWriter()
-	var msgLen msgLenCounter
-	mw := io.MultiWriter(&msgLen, w)
-	mw.Write([]byte{addr, fn})
-
 	var rqo reqOptions
 	rqo.timeout = stk.ResponseTimeout
 	if i, ok := resp.(interface{ ExpectedLenSpec() *ExpectedRespLenSpec }); ok {
@@ -244,6 +257,13 @@ func (stk *Stack) Request(addr, fn uint8, req Request, resp Response, opts ...Re
 	defer func() {
 		stk.RequestStats.Update(err)
 	}()
+
+	nRetries := 0
+retry:
+	w := stk.mode.MsgWriter()
+	var msgLen msgLenCounter
+	mw := io.MultiWriter(&msgLen, w)
+	mw.Write([]byte{addr, fn})
 	if req != nil {
 		err = req.Encode(mw)
 		if err != nil {
@@ -286,7 +306,22 @@ func (stk *Stack) Request(addr, fn uint8, req Request, resp Response, opts ...Re
 		stk.Tracef("-> %s [%d] % x\n", stk.mode.Name(), len(buf), buf)
 	}
 	if err != nil {
-		return
+		if err == ErrTimeout {
+			if nRetries < rqo.nRetriesOnTimeout {
+				nRetries++
+				rqo.timeout += rqo.timeoutIncr
+				goto retry
+			}
+		} else if nRetries < rqo.nRetriesOnInvalidReply {
+			if MsgInvalid(err) {
+				if rqo.retryDelay > 0 {
+					time.Sleep(rqo.retryDelay)
+				}
+				nRetries++
+				goto retry
+			}
+		}
+		return err
 	}
 	if ls := rqo.expectedLenSpec; ls != nil {
 		err = ls.CheckLen(msg)
