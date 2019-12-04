@@ -182,6 +182,7 @@ type Bus interface {
 type ReqOption func(*reqOptions)
 
 type reqOptions struct {
+	timeout         time.Duration
 	expectedLenSpec *ExpectedRespLenSpec
 }
 
@@ -197,6 +198,12 @@ func ExpectedRespPayloadLen(n int) ReqOption {
 func ExpectedRespLengths(l []int) ReqOption {
 	return func(r *reqOptions) {
 		r.expectedLenSpec = &ExpectedRespLenSpec{ValidLen: l}
+	}
+}
+
+func WithTimeout(d time.Duration) ReqOption {
+	return func(r *reqOptions) {
+		r.timeout = d
 	}
 }
 
@@ -227,6 +234,7 @@ func (stk *Stack) Request(addr, fn uint8, req Request, resp Response, opts ...Re
 	mw.Write([]byte{addr, fn})
 
 	var rqo reqOptions
+	rqo.timeout = stk.ResponseTimeout
 	if i, ok := resp.(interface{ ExpectedLenSpec() *ExpectedRespLenSpec }); ok {
 		rqo.expectedLenSpec = i.ExpectedLenSpec()
 	}
@@ -258,7 +266,7 @@ func (stk *Stack) Request(addr, fn uint8, req Request, resp Response, opts ...Re
 		return
 	}
 
-	buf, msg, err := stk.mode.Receive(stk.ResponseTimeout, rqo.expectedLenSpec)
+	buf, msg, err := stk.mode.Receive(rqo.timeout, rqo.expectedLenSpec)
 	if len(buf) >= 2 {
 		want := MsgHdr{addr, fn}
 		have := MsgHdr{buf[0], buf[1]}
