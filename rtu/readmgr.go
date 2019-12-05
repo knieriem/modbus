@@ -112,6 +112,7 @@ readLoop:
 			if interframeTimeoutMax == 0 {
 				break readLoop
 			}
+			nto = 0
 			timeout.Reset(interframeTimeout)
 
 		case <-timeout.C:
