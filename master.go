@@ -355,10 +355,6 @@ retry:
 		err = Exception(msg[2])
 		return
 	}
-	if msg[1] != fn {
-		err = Error("response: function mismatch")
-		return
-	}
 	if resp != nil {
 		err = resp.Decode(msg)
 	}
