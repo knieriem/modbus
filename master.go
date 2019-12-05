@@ -184,6 +184,7 @@ type ReqOption func(*reqOptions)
 type reqOptions struct {
 	timeout                time.Duration
 	timeoutIncr            time.Duration
+	waitFull               bool
 	nRetriesOnTimeout      int
 	nRetriesOnInvalidReply int
 	retryDelay             time.Duration
@@ -208,6 +209,12 @@ func ExpectedRespLengths(l []int) ReqOption {
 func WithTimeout(d time.Duration) ReqOption {
 	return func(r *reqOptions) {
 		r.timeout = d
+	}
+}
+
+func WaitFull() ReqOption {
+	return func(r *reqOptions) {
+		r.waitFull = true
 	}
 }
 
@@ -284,6 +291,16 @@ retry:
 	if addr == 0 {
 		time.Sleep(stk.TurnaroundDelay)
 		return
+	}
+
+	if rqo.waitFull {
+		t0 := time.Now()
+		defer func() {
+			remain := t0.Add(rqo.timeout).Sub(time.Now())
+			if remain > 0 {
+				time.Sleep(remain)
+			}
+		}()
 	}
 
 	buf, msg, err := stk.mode.Receive(rqo.timeout, rqo.expectedLenSpec)
