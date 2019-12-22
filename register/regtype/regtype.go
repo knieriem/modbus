@@ -58,7 +58,7 @@ func (v Value) Err() error {
 
 // Schreibweise mit %format !!!!!
 
-var types = map[string]def{
+var types = map[string]*def{
 	"f": {
 		makeSlice: makeFloat32,
 		parse:     newFloat32,
@@ -540,7 +540,7 @@ func parseValueSpec(dest []Value, s string) (vlist []Value, nRegs int, err error
 }
 
 type Item struct {
-	def
+	*def
 	fmt       string
 	n         int
 	div       uint
