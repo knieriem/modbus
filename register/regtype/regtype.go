@@ -46,6 +46,7 @@ type baseValue interface {
 
 type Value struct {
 	baseValue
+	byteOrder binary.ByteOrder
 }
 
 func (v Value) String() string {
@@ -533,7 +534,7 @@ func parseValueSpec(dest []Value, s string) (vlist []Value, nRegs int, err error
 			err = err1
 			return
 		}
-		vlist = append(vlist, Value{v})
+		vlist = append(vlist, Value{baseValue: v, byteOrder: item.byteOrder})
 	}
 	nRegs = count * d.size
 	return
@@ -541,6 +542,7 @@ func parseValueSpec(dest []Value, s string) (vlist []Value, nRegs int, err error
 
 type Item struct {
 	*def
+	byteOrder binary.ByteOrder
 	fmt       string
 	n         int
 	div       uint
@@ -639,6 +641,24 @@ func parseType(s string) (item Item, err error) {
 		item.mf = mf
 		typeName = typeName[:i]
 	}
+	if n := len(typeName); n > 4 {
+	testByteOrderSuffix:
+		switch typeName[n-3] {
+		case '6', '2', '4':
+			switch typeName[n-2:] {
+			default:
+				break testByteOrderSuffix
+			case "le":
+				item.byteOrder = binary.LittleEndian
+			case "lb":
+				item.byteOrder = littleEndianBytesSwapped{}
+			}
+			typeName = typeName[:n-2]
+			if strings.HasSuffix(typeName, "16") {
+				typeName = typeName[:n-4]
+			}
+		}
+	}
 	item.typeName = typeName
 	return
 }
@@ -708,7 +728,11 @@ func Encode(b []byte, vlist []Value, opts ...EncodingOption) (err error) {
 	e := setupEncOptions(opts)
 	w := bytes.NewBuffer(b[:0])
 	for _, v := range vlist {
-		err = binary.Write(w, e.byteOrder, v.baseValue)
+		bo := e.byteOrder
+		if v.byteOrder != nil {
+			bo = v.byteOrder
+		}
+		err = binary.Write(w, bo, v.baseValue)
 		if err != nil {
 			return
 		}
@@ -730,12 +754,16 @@ func Decode(b []byte, list []Item, opts ...EncodingOption) (vlist []Value) {
 
 	for _, item := range list {
 		sl := item.makeSlice(item.n)
-		err := binary.Read(r, e.byteOrder, sl)
+		bo := e.byteOrder
+		if item.byteOrder != nil {
+			bo = item.byteOrder
+		}
+		err := binary.Read(r, bo, sl)
 		if err != nil {
 			return
 		}
 		if bv, ok := sl.(baseValue); ok {
-			vlist = append(vlist, Value{bv})
+			vlist = append(vlist, Value{baseValue: bv})
 			continue
 		}
 		v := reflect.ValueOf(sl)
@@ -752,7 +780,7 @@ func Decode(b []byte, list []Item, opts ...EncodingOption) (vlist []Value) {
 					val = &fmtValue{fmt: item.fmt, baseValue: val}
 				}
 			}
-			vlist = append(vlist, Value{val})
+			vlist = append(vlist, Value{baseValue: val})
 		}
 	}
 	return
