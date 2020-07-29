@@ -65,7 +65,7 @@ type NetConn interface {
 	Device() interface{}
 }
 
-type Stack struct {
+type Network struct {
 	mode NetConn
 
 	Tracef          func(format string, a ...interface{})
@@ -74,16 +74,16 @@ type Stack struct {
 	RequestStats    RequestStats
 }
 
-func NewStack(mode NetConn) (stk *Stack) {
-	stk = new(Stack)
-	stk.mode = mode
-	stk.ResponseTimeout = 1000 * time.Millisecond
-	stk.TurnaroundDelay = 4 * time.Millisecond
+func NewNetwork(mode NetConn) (netw *Network) {
+	netw = new(Network)
+	netw.mode = mode
+	netw.ResponseTimeout = 1000 * time.Millisecond
+	netw.TurnaroundDelay = 4 * time.Millisecond
 	return
 }
 
-func (stk *Stack) Device() interface{} {
-	return stk.mode.Device()
+func (netw *Network) Device() interface{} {
+	return netw.mode.Device()
 }
 
 type Error string
@@ -252,9 +252,9 @@ func VariableRespLen(vs *VariableRespLenSpec) ReqOption {
 	}
 }
 
-func (stk *Stack) Request(addr, fn uint8, req Request, resp Response, opts ...ReqOption) (err error) {
+func (netw *Network) Request(addr, fn uint8, req Request, resp Response, opts ...ReqOption) (err error) {
 	var rqo reqOptions
-	rqo.timeout = stk.ResponseTimeout
+	rqo.timeout = netw.ResponseTimeout
 	if i, ok := resp.(interface{ ExpectedLenSpec() *ExpectedRespLenSpec }); ok {
 		rqo.expectedLenSpec = i.ExpectedLenSpec()
 	}
@@ -262,12 +262,12 @@ func (stk *Stack) Request(addr, fn uint8, req Request, resp Response, opts ...Re
 		o(&rqo)
 	}
 	defer func() {
-		stk.RequestStats.Update(err)
+		netw.RequestStats.Update(err)
 	}()
 
 	nRetries := 0
 retry:
-	w := stk.mode.MsgWriter()
+	w := netw.mode.MsgWriter()
 	var msgLen msgLenCounter
 	mw := io.MultiWriter(&msgLen, w)
 	mw.Write([]byte{addr, fn})
@@ -281,15 +281,15 @@ retry:
 		return ErrMaxReqLenExceeded
 	}
 
-	sent, err := stk.mode.Send()
+	sent, err := netw.mode.Send()
 	if err != nil {
 		return
 	}
-	if stk.Tracef != nil {
-		stk.Tracef("<- %s [%d] % x\n", stk.mode.Name(), len(sent), sent)
+	if netw.Tracef != nil {
+		netw.Tracef("<- %s [%d] % x\n", netw.mode.Name(), len(sent), sent)
 	}
 	if addr == 0 {
-		time.Sleep(stk.TurnaroundDelay)
+		time.Sleep(netw.TurnaroundDelay)
 		return
 	}
 
@@ -303,7 +303,7 @@ retry:
 		}()
 	}
 
-	buf, msg, err := stk.mode.Receive(rqo.timeout, rqo.expectedLenSpec)
+	buf, msg, err := netw.mode.Receive(rqo.timeout, rqo.expectedLenSpec)
 	if len(buf) >= 2 {
 		want := MsgHdr{addr, fn}
 		have := MsgHdr{buf[0], buf[1]}
@@ -315,12 +315,12 @@ retry:
 			}
 		}
 	}
-	if stk.Tracef != nil {
+	if netw.Tracef != nil {
 		if err != nil {
-			stk.Tracef("-> %s [%d] % x error: %v\n", stk.mode.Name(), len(buf), buf, err)
+			netw.Tracef("-> %s [%d] % x error: %v\n", netw.mode.Name(), len(buf), buf, err)
 			return
 		}
-		stk.Tracef("-> %s [%d] % x\n", stk.mode.Name(), len(buf), buf)
+		netw.Tracef("-> %s [%d] % x\n", netw.mode.Name(), len(buf), buf)
 	}
 	if err != nil {
 		if err == ErrTimeout {
