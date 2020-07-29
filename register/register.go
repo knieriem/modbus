@@ -11,12 +11,12 @@ import (
 	"github.com/knieriem/modbus"
 )
 
-type Slave struct {
-	modbus.Slave
+type Device struct {
+	modbus.Device
 }
 
-func NewSlave(sl modbus.Slave) *Slave {
-	return &Slave{Slave: sl}
+func NewDevice(d modbus.Device) *Device {
+	return &Device{Device: d}
 }
 
 type Error string
@@ -56,7 +56,7 @@ func (r *readRegisters) Encode(w io.Writer) (err error) {
 	return
 }
 
-func (sl *Slave) readRegs(fn uint8, startAddr uint16, dest interface{}) (err error) {
+func (d *Device) readRegs(fn uint8, startAddr uint16, dest interface{}) (err error) {
 	var resp readRegistersResp
 
 	nBytes, nReg, err := dataBufSize(dest)
@@ -65,16 +65,16 @@ func (sl *Slave) readRegs(fn uint8, startAddr uint16, dest interface{}) (err err
 	}
 	resp.buf = dest
 	expected := modbus.ExpectedRespPayloadLen(nBytes + 1)
-	err = sl.Request(fn, &readRegisters{Start: startAddr, N: nReg}, &resp, expected)
+	err = d.Request(fn, &readRegisters{Start: startAddr, N: nReg}, &resp, expected)
 	return
 }
 
-func (sl *Slave) ReadHoldingRegs(startReg uint16, dest interface{}) error {
-	return sl.readRegs(3, startReg, dest)
+func (d *Device) ReadHoldingRegs(startReg uint16, dest interface{}) error {
+	return d.readRegs(3, startReg, dest)
 }
 
-func (sl *Slave) ReadInputRegs(startReg uint16, dest interface{}) error {
-	return sl.readRegs(4, startReg, dest)
+func (d *Device) ReadInputRegs(startReg uint16, dest interface{}) error {
+	return d.readRegs(4, startReg, dest)
 }
 
 type singleReg struct {
@@ -87,7 +87,7 @@ func (r *singleReg) Encode(w io.Writer) (err error) {
 	return
 }
 
-func (sl *Slave) WriteReg(regAddr uint16, data interface{}) (err error) {
+func (d *Device) WriteReg(regAddr uint16, data interface{}) (err error) {
 	var value [2]byte
 
 	buf := bytes.NewBuffer(value[:0])
@@ -101,7 +101,7 @@ func (sl *Slave) WriteReg(regAddr uint16, data interface{}) (err error) {
 	}
 	copy(value[:], buf.Bytes())
 	expected := modbus.ExpectedRespPayloadLen(4)
-	err = sl.Request(6, &singleReg{Addr: regAddr, Value: value}, nil, expected)
+	err = d.Request(6, &singleReg{Addr: regAddr, Value: value}, nil, expected)
 	return
 }
 
@@ -128,17 +128,17 @@ func (r *multipleRegs) Encode(w io.Writer) (err error) {
 	return
 }
 
-func (sl *Slave) WriteRegs(startAddr uint16, data interface{}) (err error) {
+func (d *Device) WriteRegs(startAddr uint16, data interface{}) (err error) {
 	nBytes, nReg, err := dataBufSize(data)
 	if err != nil {
 		return
 	}
 	if nReg == 1 {
-		err = sl.WriteReg(startAddr, data)
+		err = d.WriteReg(startAddr, data)
 		return
 	}
 	expected := modbus.ExpectedRespPayloadLen(4)
-	err = sl.Request(0x10, &multipleRegs{Addr: startAddr, NRegs: nReg, NBytes: uint8(nBytes), Values: data}, nil, expected)
+	err = d.Request(0x10, &multipleRegs{Addr: startAddr, NRegs: nReg, NBytes: uint8(nBytes), Values: data}, nil, expected)
 	return
 }
 
@@ -180,7 +180,7 @@ func ParseAddr(addrStr string) (addr uint16, err error) {
 	return uint16(u64) + uint16(offset), nil
 }
 
-func ParseModiconNum(sl modbus.StdRegisterFuncs, value string) (addr uint16, f Func, err error) {
+func ParseModiconNum(d modbus.StdRegisterFuncs, value string) (addr uint16, f Func, err error) {
 	value, offset, err := parseOffset(value)
 	if err != nil {
 		return 0, nil, err
@@ -192,9 +192,9 @@ func ParseModiconNum(sl modbus.StdRegisterFuncs, value string) (addr uint16, f F
 	// decode reference
 	switch value[0] {
 	case '3':
-		f = sl.ReadInputRegs
+		f = d.ReadInputRegs
 	case '4':
-		f = sl.ReadHoldingRegs
+		f = d.ReadHoldingRegs
 	case ' ', '\t':
 		return 0, nil, Error("initial white-space not allowed")
 	default:

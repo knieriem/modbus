@@ -10,7 +10,7 @@ import (
 type Transport struct {
 	typ     byte
 	respBuf msg
-	sl      modbus.Slave
+	dev     modbus.Device
 }
 
 type msg struct {
@@ -47,7 +47,7 @@ func (m *msg) Decode(buf []byte) (err error) {
 }
 
 func (t *Transport) Request(req []byte, opts ...modbus.ReqOption) (resp []byte, err error) {
-	err = t.sl.Request(0x2B, &msg{typ: t.typ, data: req}, &t.respBuf, opts...)
+	err = t.dev.Request(0x2B, &msg{typ: t.typ, data: req}, &t.respBuf, opts...)
 	if err != nil {
 		return
 	}
@@ -55,10 +55,10 @@ func (t *Transport) Request(req []byte, opts ...modbus.ReqOption) (resp []byte, 
 	return
 }
 
-func NewTransport(sl modbus.Slave, meiType byte) *Transport {
+func NewTransport(dev modbus.Device, meiType byte) *Transport {
 	m := new(Transport)
 	m.typ = meiType
-	m.sl = sl
+	m.dev = dev
 	m.respBuf.typ = meiType
 	return m
 }

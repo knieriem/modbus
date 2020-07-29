@@ -714,9 +714,9 @@ type encOptions struct {
 }
 
 // LittleEndianHack reverses the byte order for all types.
-// For some slave implementations, the 16-bit register byte order,
+// For some Modbus device implementations, the 16-bit register byte order,
 // contrary to the Modbus specification, is assumed to be little endian.
-// With this hack communicating with these slaves remains possible
+// With this hack communicating with these devices remains possible
 // without providing special little-endian types. Use with caution.
 func LittleEndianHack() EncodingOption {
 	return func(o *encOptions) {

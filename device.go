@@ -1,6 +1,6 @@
 package modbus
 
-type Slave interface {
+type Device interface {
 	Request(fn uint8, req Request, resp Response, opts ...ReqOption) error
 }
 
@@ -10,28 +10,28 @@ type StdRegisterFuncs interface {
 	WriteRegs(start uint16, data interface{}) error
 }
 
-type addressedSlave struct {
+type addressedDevice struct {
 	addr byte
 	bus  Bus
 }
 
-func newAddressedSlave(bus Bus) *addressedSlave {
-	a := new(addressedSlave)
+func newAddressedDevice(bus Bus) *addressedDevice {
+	a := new(addressedDevice)
 	a.bus = bus
 	return a
 }
 
-func (sl *addressedSlave) Request(fn uint8, req Request, resp Response, opts ...ReqOption) error {
-	return sl.bus.Request(sl.addr, fn, req, resp, opts...)
+func (d *addressedDevice) Request(fn uint8, req Request, resp Response, opts ...ReqOption) error {
+	return d.bus.Request(d.addr, fn, req, resp, opts...)
 }
 
-type SlaveTestFunc func(addr byte, sl Slave) error
+type DeviceTestFunc func(addr byte, d Device) error
 
-func ScanSlaves(bus Bus, addrMin, addrMax byte, test SlaveTestFunc) (err error) {
-	sl := newAddressedSlave(bus)
+func ScanDevices(bus Bus, addrMin, addrMax byte, test DeviceTestFunc) (err error) {
+	d := newAddressedDevice(bus)
 	for a := addrMin; a <= addrMax; a++ {
-		sl.addr = byte(a)
-		err = test(sl.addr, sl)
+		d.addr = byte(a)
+		err = test(d.addr, d)
 		if err != nil {
 			if err == ErrTimeout || MsgInvalid(err) {
 				err = nil

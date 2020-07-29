@@ -21,9 +21,9 @@ const (
 	XIllegalFunc Exception = 1 + iota
 	XIllegalDataAddr
 	XIllegalDataVal
-	XSlaveDeviceFailure
+	XDeviceFailure
 	XACK
-	XSlaveBusy
+	XDeviceBusy
 	_
 	XMemoryParityError
 	_
@@ -39,12 +39,12 @@ func (x Exception) Error() (s string) {
 		s = "illegal data addr"
 	case XIllegalDataVal:
 		s = "illegal data value"
-	case XSlaveDeviceFailure:
-		s = "slave device failure"
+	case XDeviceFailure:
+		s = "device failure"
 	case XACK:
 		s = "acknowledge"
-	case XSlaveBusy:
-		s = "slave device busy"
+	case XDeviceBusy:
+		s = "device busy"
 	case XMemoryParityError:
 		s = "memory parity error"
 	case XGwPathUnavail:

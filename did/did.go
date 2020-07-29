@@ -73,9 +73,9 @@ type Reader struct {
 	tp *mei.Transport
 }
 
-func NewReader(sl modbus.Slave) *Reader {
+func NewReader(d modbus.Device) *Reader {
 	r := new(Reader)
-	r.tp = mei.NewTransport(sl, 14)
+	r.tp = mei.NewTransport(d, 14)
 	return r
 }
 
