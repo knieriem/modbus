@@ -66,7 +66,7 @@ type NetConn interface {
 }
 
 type Network struct {
-	mode NetConn
+	conn NetConn
 
 	Tracef          func(format string, a ...interface{})
 	ResponseTimeout time.Duration
@@ -74,16 +74,16 @@ type Network struct {
 	RequestStats    RequestStats
 }
 
-func NewNetwork(mode NetConn) (netw *Network) {
+func NewNetwork(conn NetConn) (netw *Network) {
 	netw = new(Network)
-	netw.mode = mode
+	netw.conn = conn
 	netw.ResponseTimeout = 1000 * time.Millisecond
 	netw.TurnaroundDelay = 4 * time.Millisecond
 	return
 }
 
 func (netw *Network) Device() interface{} {
-	return netw.mode.Device()
+	return netw.conn.Device()
 }
 
 type Error string
@@ -267,7 +267,7 @@ func (netw *Network) Request(addr, fn uint8, req Request, resp Response, opts ..
 
 	nRetries := 0
 retry:
-	w := netw.mode.MsgWriter()
+	w := netw.conn.MsgWriter()
 	var msgLen msgLenCounter
 	mw := io.MultiWriter(&msgLen, w)
 	mw.Write([]byte{addr, fn})
@@ -281,12 +281,12 @@ retry:
 		return ErrMaxReqLenExceeded
 	}
 
-	sent, err := netw.mode.Send()
+	sent, err := netw.conn.Send()
 	if err != nil {
 		return
 	}
 	if netw.Tracef != nil {
-		netw.Tracef("<- %s [%d] % x\n", netw.mode.Name(), len(sent), sent)
+		netw.Tracef("<- %s [%d] % x\n", netw.conn.Name(), len(sent), sent)
 	}
 	if addr == 0 {
 		time.Sleep(netw.TurnaroundDelay)
@@ -303,7 +303,7 @@ retry:
 		}()
 	}
 
-	buf, msg, err := netw.mode.Receive(rqo.timeout, rqo.expectedLenSpec)
+	buf, msg, err := netw.conn.Receive(rqo.timeout, rqo.expectedLenSpec)
 	if len(buf) >= 2 {
 		want := MsgHdr{addr, fn}
 		have := MsgHdr{buf[0], buf[1]}
@@ -317,10 +317,10 @@ retry:
 	}
 	if netw.Tracef != nil {
 		if err != nil {
-			netw.Tracef("-> %s [%d] % x error: %v\n", netw.mode.Name(), len(buf), buf, err)
+			netw.Tracef("-> %s [%d] % x error: %v\n", netw.conn.Name(), len(buf), buf, err)
 			return
 		}
-		netw.Tracef("-> %s [%d] % x\n", netw.mode.Name(), len(buf), buf)
+		netw.Tracef("-> %s [%d] % x\n", netw.conn.Name(), len(buf), buf)
 	}
 	if err != nil {
 		if err == ErrTimeout {
