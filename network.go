@@ -386,6 +386,9 @@ retry:
 	if ls := rqo.expectedLenSpec; ls != nil {
 		err = ls.CheckLen(pdu)
 		if err != nil {
+			if bytes.Equal(buf, sent) {
+				err = ErrUnexpectedEcho
+			}
 			return
 		}
 	}
