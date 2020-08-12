@@ -101,7 +101,7 @@ func (r *Reader) Read(cat Category, startID ID) (list []Object, err error) {
 more:
 	req := []byte{byte(cat), byte(startID)}
 	vs := &modbus.VariableRespLenSpec{
-		NumItemsIndex: 7,
+		NumItemsIndex: 6,
 		ItemLenIndex:  1,
 	}
 	resp, err := r.tp.Request(req, modbus.VariableRespLen(vs))

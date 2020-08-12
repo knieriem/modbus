@@ -50,7 +50,10 @@ func NewNetConn(conn io.ReadWriter) (m *Conn) {
 		if m.h.Sum16() != 0 {
 			return false
 		}
-		if m.expectedLenSpec.CheckLen(msg[:len(msg)-2]) != nil {
+		if len(msg) < 4 {
+			return false
+		}
+		if m.expectedLenSpec.CheckLen(msg[1:len(msg)-2]) != nil {
 			return false
 		}
 		return true
@@ -118,7 +121,7 @@ func (m *Conn) Send() (buf []byte, err error) {
 	return
 }
 
-func (m *Conn) Receive(tMax time.Duration, ls *modbus.ExpectedRespLenSpec) (buf, msg []byte, err error) {
+func (m *Conn) Receive(tMax time.Duration, ls *modbus.ExpectedRespLenSpec) (adu modbus.ADU, err error) {
 	if f := m.OnReceiveError; f != nil {
 		defer func() {
 			if err != nil {
@@ -128,16 +131,18 @@ func (m *Conn) Receive(tMax time.Duration, ls *modbus.ExpectedRespLenSpec) (buf,
 	}
 	m.h.Reset()
 	m.expectedLenSpec = ls
-	buf, err = m.readMgr.Read(tMax, m.InterframeTimeout)
+	adu.Bytes, err = m.readMgr.Read(tMax, m.InterframeTimeout)
 	if err != nil {
 		return
 	}
-	n := len(buf)
+	n := len(adu.Bytes)
 	if n < 4 {
-		err = modbus.NewInvalidMsgLen(n, 4)
+		err = modbus.NewInvalidLen(modbus.MsgContextADU, n, 4)
 		return
 	}
-	err = ls.CheckLen(buf[:n-2])
+	adu.PDUStart = 1
+	adu.PDUEnd = -2
+	err = ls.CheckLen(adu.Bytes[1 : n-2])
 	if err != nil {
 		return
 	}
@@ -145,7 +150,6 @@ func (m *Conn) Receive(tMax time.Duration, ls *modbus.ExpectedRespLenSpec) (buf,
 		err = modbus.ErrCRC
 		return
 	}
-	msg = buf[:n-2]
 	return
 }
 
@@ -155,7 +159,7 @@ func (m *Conn) Receive(tMax time.Duration, ls *modbus.ExpectedRespLenSpec) (buf,
 // if the timeout had been a bit longer. MaybeTruncatedMsg
 // tells if the error suggests such a condition.
 func MaybeTruncatedMsg(err error) bool {
-	e, ok := err.(modbus.InvalidMsgLenError)
+	e, ok := err.(modbus.InvalidLenError)
 	if !ok {
 		return false
 	}

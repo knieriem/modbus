@@ -61,8 +61,36 @@ type NetConn interface {
 	Name() string
 	MsgWriter() io.Writer
 	Send() ([]byte, error)
-	Receive(timeout time.Duration, ls *ExpectedRespLenSpec) (buf, msg []byte, err error)
+	Receive(timeout time.Duration, ls *ExpectedRespLenSpec) (ADU, error)
 	Device() interface{}
+}
+
+type ADU struct {
+	Bytes []byte
+
+	// PDUStart contains the start index of a PDU,
+	// relative to the start of an ADU
+	PDUStart int
+
+	// PDUStart contains the end index of a PDU,
+	// relative to the end of an ADU.
+	PDUEnd int
+}
+
+// AddrPDU returns the address and the PDU parts of
+// an ADU. It assumes that the address always is in the
+// byte before the PDU.
+// AddrPDU returns zero and nil in case the length of
+// the ADU is too small.
+func (adu *ADU) AddrPDU() (uint8, []byte) {
+	if adu.PDUStart == 0 {
+		return 0, nil
+	}
+	end := len(adu.Bytes) + adu.PDUEnd
+	if end < adu.PDUStart {
+		return 0, nil
+	}
+	return adu.Bytes[adu.PDUStart-1], adu.Bytes[adu.PDUStart:end]
 }
 
 type Network struct {
@@ -132,21 +160,22 @@ func (h MsgHdr) matchFn(h2 MsgHdr) bool {
 	return h[1] == h2[1] || (ErrorMask|h[1]) == h2[1]
 }
 
-type InvalidMsgLenError struct {
+type InvalidLenError struct {
+	MsgContext
 	Len         int
 	ExpectedLen []int
 }
 
-func NewInvalidPayloadLen(have int, want ...int) error {
-	wcpy := make([]int, len(want))
-	for i := range want {
-		wcpy[i] = want[i] + 2
-	}
-	return &InvalidMsgLenError{Len: 2 + have, ExpectedLen: wcpy}
-}
+type MsgContext string
 
-func NewInvalidMsgLen(have int, want ...int) error {
-	return &InvalidMsgLenError{Len: have, ExpectedLen: want}
+const (
+	MsgContextADU  MsgContext = "ADU"
+	MsgContextPDU  MsgContext = "PDU"
+	MsgContextData MsgContext = "data part"
+)
+
+func NewInvalidLen(ctx MsgContext, have int, want ...int) error {
+	return &InvalidLenError{MsgContext: ctx, Len: have, ExpectedLen: want}
 }
 
 func NewLengthFieldMismatch(lengthField int, msgLen int) error {
@@ -157,21 +186,24 @@ func NewInvalidUserBufLen(have int, want int) error {
 	return fmt.Errorf("length of user provided buffer (%d), and message length (%d) inconsitent", have, want)
 }
 
-func (e InvalidMsgLenError) Error() string {
+func (e InvalidLenError) Error() string {
+	if e.MsgContext == "" {
+		return fmt.Sprint("invalid length (unspecified)")
+	}
 	if e.TooLong() {
-		return fmt.Sprintf("msg too long (have %d, want %d)", e.Len, e.ExpectedLen[0])
+		return fmt.Sprintf("%s too long (have %d, want %d)", e.MsgContext, e.Len, e.ExpectedLen[0])
 	}
 	if e.TooShort() {
-		return fmt.Sprintf("msg too short (have %d, want %d)", e.Len, e.ExpectedLen[0])
+		return fmt.Sprintf("%s too short (have %d, want %d)", e.MsgContext, e.Len, e.ExpectedLen[0])
 	}
-	return fmt.Sprintf("invalid msg length (have %d, want %v)", e.Len, e.ExpectedLen)
+	return fmt.Sprintf("invalid %s length (have %d, want %v)", e.MsgContext, e.Len, e.ExpectedLen)
 }
 
-func (e *InvalidMsgLenError) TooLong() bool {
+func (e *InvalidLenError) TooLong() bool {
 	return len(e.ExpectedLen) == 1 && e.Len > e.ExpectedLen[0]
 }
 
-func (e *InvalidMsgLenError) TooShort() bool {
+func (e *InvalidLenError) TooShort() bool {
 	return len(e.ExpectedLen) == 1 && e.Len < e.ExpectedLen[0]
 }
 
@@ -191,10 +223,10 @@ type reqOptions struct {
 	expectedLenSpec        *ExpectedRespLenSpec
 }
 
-func ExpectedRespPayloadLen(n int) ReqOption {
-	if n > 0 {
-		n += 2
-	}
+// ExpectedRespLen is a request option that specifies
+// which PDU size is expected for a fixed length response.
+// It allows the request procedure to return as early as possible.
+func ExpectedRespLen(n int) ReqOption {
 	return func(r *reqOptions) {
 		r.expectedLenSpec = &ExpectedRespLenSpec{ValidLen: []int{n}}
 	}
@@ -237,6 +269,10 @@ type ExpectedRespLenSpec struct {
 	Variable *VariableRespLenSpec
 }
 
+// VariableRespLenSpec defines how a PDU size
+// of a variable-length response can be verified,
+// e.g. in case of requests like Read Device Identification.
+// It allows the request procedure to return as early as possible.
 type VariableRespLenSpec struct {
 	PrefixLen     int
 	NumItemsFixed int
@@ -246,6 +282,8 @@ type VariableRespLenSpec struct {
 	TailLen       int
 }
 
+// VariableRespLen is a request option that defines
+// a VariableRespLenSpec to be used during the request.
 func VariableRespLen(vs *VariableRespLenSpec) ReqOption {
 	return func(r *reqOptions) {
 		r.expectedLenSpec = &ExpectedRespLenSpec{Variable: vs}
@@ -303,10 +341,14 @@ retry:
 		}()
 	}
 
-	buf, msg, err := netw.conn.Receive(rqo.timeout, rqo.expectedLenSpec)
-	if len(buf) >= 2 {
+	adu, err := netw.conn.Receive(rqo.timeout, rqo.expectedLenSpec)
+
+	buf := adu.Bytes
+	respAddr, pdu := adu.AddrPDU()
+
+	if len(pdu) >= 1 {
 		want := MsgHdr{addr, fn}
-		have := MsgHdr{buf[0], buf[1]}
+		have := MsgHdr{respAddr, pdu[0]}
 		if !want.matchAddr(have) || !want.matchFn(have) {
 			err = &MismatchError{Req: want, Resp: have, origErr: err}
 		} else if err != nil {
@@ -341,22 +383,22 @@ retry:
 		return err
 	}
 	if ls := rqo.expectedLenSpec; ls != nil {
-		err = ls.CheckLen(msg)
+		err = ls.CheckLen(pdu)
 		if err != nil {
 			return
 		}
 	}
-	if msg[1] == ErrorMask|fn {
+	if pdu[0] == ErrorMask|fn {
 		// handle error
-		if len(msg) != 3 {
-			err = NewInvalidMsgLen(len(msg), 3)
+		if len(pdu) != 2 {
+			err = NewInvalidLen(MsgContextPDU, len(pdu), 2)
 			return
 		}
-		err = Exception(msg[2])
+		err = Exception(pdu[1])
 		return
 	}
 	if resp != nil {
-		err = resp.Decode(msg)
+		err = resp.Decode(pdu[1:])
 	}
 	return
 }
@@ -368,22 +410,24 @@ func (lc *msgLenCounter) Write(data []byte) (int, error) {
 	return len(data), nil
 }
 
-func (ls *ExpectedRespLenSpec) CheckLen(frame []byte) error {
+func (ls *ExpectedRespLenSpec) CheckLen(pdu []byte) error {
 	if ls == nil {
 		return nil
 	}
-	n := len(frame)
-	if n == 3 {
-		if frame[1]&0x80 != 0 {
+
+	n := len(pdu)
+	if n == 2 {
+		if pdu[0]&0x80 != 0 {
 			return nil // is an exception response
 		}
 	}
+
 	valid := ls.ValidLen
 	if valid == nil {
 		if v := ls.Variable; v != nil {
-			expectedLen, ok := v.Match(frame)
+			expectedLen, ok := v.Match(pdu)
 			if !ok {
-				return NewInvalidMsgLen(n, expectedLen)
+				return NewInvalidLen(MsgContextData, n, expectedLen)
 			}
 		}
 		return nil
@@ -401,13 +445,13 @@ func (ls *ExpectedRespLenSpec) CheckLen(frame []byte) error {
 		}
 	}
 	if n > max {
-		return NewInvalidMsgLen(n, max)
+		return NewInvalidLen(MsgContextPDU, n, max)
 	}
-	return NewInvalidMsgLen(n, valid...)
+	return NewInvalidLen(MsgContextPDU, n, valid...)
 }
 
-func (v *VariableRespLenSpec) Match(frame []byte) (expectedLen int, match bool) {
-	n := len(frame)
+func (v *VariableRespLenSpec) Match(pdu []byte) (expectedLen int, match bool) {
+	n := len(pdu)
 	nx := 0
 	ni := v.NumItemsFixed
 	if ni == 0 {
@@ -415,7 +459,7 @@ func (v *VariableRespLenSpec) Match(frame []byte) (expectedLen int, match bool) 
 		if n < nx {
 			return nx, false
 		}
-		ni = int(frame[nx-1])
+		ni = int(pdu[nx-1])
 	}
 	nx += v.PrefixLen
 	if n < nx {
@@ -426,14 +470,14 @@ func (v *VariableRespLenSpec) Match(frame []byte) (expectedLen int, match bool) 
 		if n < nx {
 			return nx, false
 		}
-		nx += int(frame[nx-1]) + v.ItemTailLen
+		nx += int(pdu[nx-1]) + v.ItemTailLen
 	}
 	nx += v.TailLen
 	return nx, n == nx
 }
 
 func MsgInvalid(err error) bool {
-	if _, ok := err.(*InvalidMsgLenError); ok {
+	if _, ok := err.(*InvalidLenError); ok {
 		return true
 	}
 	if _, ok := err.(*MismatchError); ok {
@@ -450,9 +494,13 @@ func MsgInvalid(err error) bool {
 }
 
 type Request interface {
+	// Encode writes the data part of a PDU,
+	// i.e. the PDU without the function code.
 	Encode(io.Writer) error
 }
 
 type Response interface {
+	// Decode works on the data part of a PDU,
+	// i.e. the PDU without the function code.
 	Decode([]byte) error
 }

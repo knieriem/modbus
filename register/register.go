@@ -33,9 +33,8 @@ type readRegistersResp struct {
 }
 
 func (r *readRegistersResp) Decode(buf []byte) (err error) {
-	buf = buf[2:]
 	if len(buf) < 1 {
-		return modbus.NewInvalidPayloadLen(len(buf), 1)
+		return modbus.NewInvalidLen(modbus.MsgContextData, len(buf), 1)
 	}
 	r.numBytes = buf[0]
 	data := buf[1:]
@@ -64,7 +63,7 @@ func (d *Device) readRegs(fn uint8, startAddr uint16, dest interface{}) (err err
 		return
 	}
 	resp.buf = dest
-	expected := modbus.ExpectedRespPayloadLen(nBytes + 1)
+	expected := modbus.ExpectedRespLen(1 + 1 + nBytes)
 	err = d.Request(fn, &readRegisters{Start: startAddr, N: nReg}, &resp, expected)
 	return
 }
@@ -100,7 +99,7 @@ func (d *Device) WriteReg(regAddr uint16, data interface{}) (err error) {
 		return
 	}
 	copy(value[:], buf.Bytes())
-	expected := modbus.ExpectedRespPayloadLen(4)
+	expected := modbus.ExpectedRespLen(1 + 2 + 2)
 	err = d.Request(6, &singleReg{Addr: regAddr, Value: value}, nil, expected)
 	return
 }
@@ -137,7 +136,7 @@ func (d *Device) WriteRegs(startAddr uint16, data interface{}) (err error) {
 		err = d.WriteReg(startAddr, data)
 		return
 	}
-	expected := modbus.ExpectedRespPayloadLen(4)
+	expected := modbus.ExpectedRespLen(1 + 2 + 2)
 	err = d.Request(0x10, &multipleRegs{Addr: startAddr, NRegs: nReg, NBytes: uint8(nBytes), Values: data}, nil, expected)
 	return
 }

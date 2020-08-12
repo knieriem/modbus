@@ -3,7 +3,6 @@ package modtcp
 import (
 	"bytes"
 	"errors"
-	"fmt"
 	"io"
 	"net"
 	"time"
@@ -106,7 +105,7 @@ func (m *Conn) Send() (buf []byte, err error) {
 	return
 }
 
-func (m *Conn) Receive(tMax time.Duration, ls *modbus.ExpectedRespLenSpec) (buf, msg []byte, err error) {
+func (m *Conn) Receive(tMax time.Duration, ls *modbus.ExpectedRespLenSpec) (adu modbus.ADU, err error) {
 	if f := m.OnReceiveError; f != nil {
 		defer func() {
 			if err != nil {
@@ -114,14 +113,16 @@ func (m *Conn) Receive(tMax time.Duration, ls *modbus.ExpectedRespLenSpec) (buf,
 			}
 		}()
 	}
+
 retry:
-	buf, err = m.readMgr.Read(tMax, tMax)
+	adu.Bytes, err = m.readMgr.Read(tMax, tMax)
 	if err != nil {
 		return
 	}
+	buf := adu.Bytes
 	n := len(buf)
-	if n < 8 {
-		err = fmt.Errorf("modtcp: truncated header (have %d, want 8 bytes)", n)
+	if n < mbapHdrSize+1 {
+		err = modbus.NewInvalidLen(modbus.MsgContextADU, n, mbapHdrSize+1)
 		return
 	}
 	if int(bo.Uint16(buf[hdrPosProtoID:])) != 0 {
@@ -130,10 +131,12 @@ retry:
 	}
 	length := int(bo.Uint16(buf[hdrPosLen:])) + hdrSize
 	if n != length {
-		err = modbus.NewInvalidMsgLen(n, length)
+		err = modbus.NewInvalidLen(modbus.MsgContextADU, n, length)
 		return
 	}
-	err = ls.CheckLen(buf[hdrSize:])
+	adu.PDUStart = mbapHdrSize
+	adu.PDUEnd = 0
+	err = ls.CheckLen(buf[mbapHdrSize:])
 	if err != nil {
 		return
 	}
@@ -149,6 +152,5 @@ retry:
 		err = ErrTransactionIDMismatch
 		return
 	}
-	msg = buf[hdrSize:]
 	return
 }
