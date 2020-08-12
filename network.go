@@ -178,12 +178,12 @@ func NewInvalidLen(ctx MsgContext, have int, want ...int) error {
 	return &InvalidLenError{MsgContext: ctx, Len: have, ExpectedLen: want}
 }
 
-func NewLengthFieldMismatch(lengthField int, msgLen int) error {
-	return fmt.Errorf("length field value (%d) and msg length inconsistent (%d)", lengthField, msgLen)
+func NewLengthFieldMismatch(lengthField int, dataLen int) error {
+	return fmt.Errorf("length field value (%d) and actual data length inconsistent (%d)", lengthField, dataLen)
 }
 
 func NewInvalidUserBufLen(have int, want int) error {
-	return fmt.Errorf("length of user provided buffer (%d), and message length (%d) inconsitent", have, want)
+	return fmt.Errorf("length of user provided buffer (%d), and data length (%d) inconsistent", have, want)
 }
 
 func (e InvalidLenError) Error() string {
