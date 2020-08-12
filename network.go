@@ -31,7 +31,8 @@ const (
 	XGwTargetFailedToRespond
 )
 
-func (x Exception) Error() (s string) {
+func (x Exception) Error() string {
+	var s string
 	switch x {
 	case XIllegalFunc:
 		s = "illegal function"
@@ -54,7 +55,7 @@ func (x Exception) Error() (s string) {
 	default:
 		s = "unknown exception 0x" + strconv.FormatUint(uint64(x), 16)
 	}
-	return
+	return "modbus: " + s
 }
 
 type NetConn interface {
@@ -179,24 +180,24 @@ func NewInvalidLen(ctx MsgContext, have int, want ...int) error {
 }
 
 func NewLengthFieldMismatch(lengthField int, dataLen int) error {
-	return fmt.Errorf("length field value (%d) and actual data length inconsistent (%d)", lengthField, dataLen)
+	return fmt.Errorf("modbus: length field value (%d) and actual data length inconsistent (%d)", lengthField, dataLen)
 }
 
 func NewInvalidUserBufLen(have int, want int) error {
-	return fmt.Errorf("length of user provided buffer (%d), and data length (%d) inconsistent", have, want)
+	return fmt.Errorf("modbus: length of user provided buffer (%d), and data length (%d) inconsistent", have, want)
 }
 
 func (e InvalidLenError) Error() string {
 	if e.MsgContext == "" {
-		return fmt.Sprint("invalid length (unspecified)")
+		return fmt.Sprint("modbus: invalid length (unspecified)")
 	}
 	if e.TooLong() {
-		return fmt.Sprintf("%s too long (have %d, want %d)", e.MsgContext, e.Len, e.ExpectedLen[0])
+		return fmt.Sprintf("modbus: %s too long (have %d, want %d)", e.MsgContext, e.Len, e.ExpectedLen[0])
 	}
 	if e.TooShort() {
-		return fmt.Sprintf("%s too short (have %d, want %d)", e.MsgContext, e.Len, e.ExpectedLen[0])
+		return fmt.Sprintf("modbus: %s too short (have %d, want %d)", e.MsgContext, e.Len, e.ExpectedLen[0])
 	}
-	return fmt.Sprintf("invalid %s length (have %d, want %v)", e.MsgContext, e.Len, e.ExpectedLen)
+	return fmt.Sprintf("modbus: invalid %s length (have %d, want %v)", e.MsgContext, e.Len, e.ExpectedLen)
 }
 
 func (e *InvalidLenError) TooLong() bool {
