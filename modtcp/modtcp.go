@@ -14,11 +14,13 @@ import (
 const (
 	hdrSize     = 6 // Size of the MBAP header, without the Unit field
 	mbapHdrSize = hdrSize + 1
+	pduSize     = 256 - 2 - 1
 
 	hdrPosTxnID   = 0
 	hdrPosProtoID = 2
 	hdrPosLen     = 4
 	hdrPosUnit    = 6
+	hdrPosPDU     = hdrPosUnit + 1
 )
 
 var (

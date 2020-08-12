@@ -108,8 +108,8 @@ func (c *conn) setState(state ConnState) {
 
 func (srv *Server) handleConn(c *conn) error {
 	var hdr = make([]byte, mbapHdrSize)
-	var msg = make([]byte, 256-2-1)
-	var resp = make(rawMsg, hdrSize+256-2)
+	var pdu = make([]byte, pduSize)
+	var resp = make(rawData, mbapHdrSize+pduSize)
 
 	for {
 		c.setState(StateIdle)
@@ -130,11 +130,11 @@ func (srv *Server) handleConn(c *conn) error {
 
 		unit := hdr[hdrPosUnit]
 		length--
-		if cap(msg) < length {
-			msg = make([]byte, 2*length)
+		if cap(pdu) < length {
+			pdu = make([]byte, 2*length)
 		}
-		msg = msg[:length]
-		err = c.readFull(msg)
+		pdu = pdu[:length]
+		err = c.readFull(pdu)
 		if err != nil {
 			return err
 		}
@@ -142,13 +142,14 @@ func (srv *Server) handleConn(c *conn) error {
 			continue
 		}
 
-		fn := msg[0]
-		resp := resp[:hdrSize]
-		err = srv.Bus.Request(unit, fn, rawMsg(msg[1:]), &resp)
+		fn := pdu[0]
+		resp := resp[:mbapHdrSize]
+		err = srv.Bus.Request(unit, fn, rawData(pdu[1:]), &resp)
+		resp[hdrPosUnit] = unit
 		if err != nil {
 			switch e := err.(type) {
 			case modbus.Exception:
-				resp = append(resp, unit, 0x80|fn, byte(e))
+				resp = append(resp, 0x80|fn, byte(e))
 			case modbus.Error:
 				h := &srv.OnError
 				if err == modbus.ErrTimeout {
@@ -157,10 +158,12 @@ func (srv *Server) handleConn(c *conn) error {
 				if !h.SendException {
 					continue
 				}
-				resp = append(resp, unit, 0x80|fn, byte(modbus.XGwTargetFailedToRespond))
+				resp = append(resp, 0x80|fn, byte(modbus.XGwTargetFailedToRespond))
 			default:
 				return err
 			}
+		} else {
+			resp[hdrPosPDU] = fn
 		}
 		bo.PutUint16(resp[hdrPosLen:], uint16(len(resp[hdrSize:])))
 		bo.PutUint16(resp[hdrPosTxnID:], txnID)
@@ -174,19 +177,19 @@ func (srv *Server) handleConn(c *conn) error {
 	}
 }
 
-type rawMsg []byte
+type rawData []byte
 
-func (b *rawMsg) Decode(buf []byte) (err error) {
-	n := hdrSize + len(buf)
+func (b *rawData) Decode(buf []byte) (err error) {
+	n := mbapHdrSize + 1 + len(buf)
 	if cap(*b) < n {
 		*b = make([]byte, 2*n)
 	}
 	*b = (*b)[:n]
-	copy((*b)[hdrSize:], buf)
+	copy((*b)[mbapHdrSize+1:], buf)
 	return
 }
 
-func (b rawMsg) Encode(w io.Writer) (err error) {
+func (b rawData) Encode(w io.Writer) (err error) {
 	_, err = w.Write(b)
 	return
 }
