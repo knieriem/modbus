@@ -5,9 +5,9 @@ type Device interface {
 }
 
 type StdRegisterFuncs interface {
-	ReadHoldingRegs(start uint16, data interface{}) error
-	ReadInputRegs(start uint16, data interface{}) error
-	WriteRegs(start uint16, data interface{}) error
+	ReadHoldingRegs(start uint16, data interface{}, opts ...ReqOption) error
+	ReadInputRegs(start uint16, data interface{}, opts ...ReqOption) error
+	WriteRegs(start uint16, data interface{}, opts ...ReqOption) error
 }
 
 type addressedDevice struct {

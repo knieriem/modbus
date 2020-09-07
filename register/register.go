@@ -25,7 +25,7 @@ func (e Error) Error() string {
 	return "register: " + string(e)
 }
 
-type Func func(regAddr uint16, data interface{}) error
+type ReadFunc func(regAddr uint16, data interface{}, opts ...modbus.ReqOption) error
 
 type readRegistersResp struct {
 	numBytes byte
@@ -55,7 +55,7 @@ func (r *readRegisters) Encode(w io.Writer) (err error) {
 	return
 }
 
-func (d *Device) readRegs(fn uint8, startAddr uint16, dest interface{}) (err error) {
+func (d *Device) readRegs(fn uint8, startAddr uint16, dest interface{}, opts []modbus.ReqOption) (err error) {
 	var resp readRegistersResp
 
 	nBytes, nReg, err := dataBufSize(dest)
@@ -63,17 +63,17 @@ func (d *Device) readRegs(fn uint8, startAddr uint16, dest interface{}) (err err
 		return
 	}
 	resp.buf = dest
-	expected := modbus.ExpectedRespLen(1 + 1 + nBytes)
-	err = d.Request(fn, &readRegisters{Start: startAddr, N: nReg}, &resp, expected)
+	opts = append(opts, modbus.ExpectedRespLen(1+1+nBytes))
+	err = d.Request(fn, &readRegisters{Start: startAddr, N: nReg}, &resp, opts...)
 	return
 }
 
-func (d *Device) ReadHoldingRegs(startReg uint16, dest interface{}) error {
-	return d.readRegs(3, startReg, dest)
+func (d *Device) ReadHoldingRegs(startReg uint16, dest interface{}, opts ...modbus.ReqOption) error {
+	return d.readRegs(3, startReg, dest, opts)
 }
 
-func (d *Device) ReadInputRegs(startReg uint16, dest interface{}) error {
-	return d.readRegs(4, startReg, dest)
+func (d *Device) ReadInputRegs(startReg uint16, dest interface{}, opts ...modbus.ReqOption) error {
+	return d.readRegs(4, startReg, dest, opts)
 }
 
 type singleReg struct {
@@ -86,7 +86,7 @@ func (r *singleReg) Encode(w io.Writer) (err error) {
 	return
 }
 
-func (d *Device) WriteReg(regAddr uint16, data interface{}) (err error) {
+func (d *Device) WriteReg(regAddr uint16, data interface{}, opts ...modbus.ReqOption) (err error) {
 	var value [2]byte
 
 	buf := bytes.NewBuffer(value[:0])
@@ -99,8 +99,8 @@ func (d *Device) WriteReg(regAddr uint16, data interface{}) (err error) {
 		return
 	}
 	copy(value[:], buf.Bytes())
-	expected := modbus.ExpectedRespLen(1 + 2 + 2)
-	err = d.Request(6, &singleReg{Addr: regAddr, Value: value}, nil, expected)
+	opts = append(opts, modbus.ExpectedRespLen(1+2+2))
+	err = d.Request(6, &singleReg{Addr: regAddr, Value: value}, nil, opts...)
 	return
 }
 
@@ -127,17 +127,17 @@ func (r *multipleRegs) Encode(w io.Writer) (err error) {
 	return
 }
 
-func (d *Device) WriteRegs(startAddr uint16, data interface{}) (err error) {
+func (d *Device) WriteRegs(startAddr uint16, data interface{}, opts ...modbus.ReqOption) (err error) {
 	nBytes, nReg, err := dataBufSize(data)
 	if err != nil {
 		return
 	}
 	if nReg == 1 {
-		err = d.WriteReg(startAddr, data)
+		err = d.WriteReg(startAddr, data, opts...)
 		return
 	}
-	expected := modbus.ExpectedRespLen(1 + 2 + 2)
-	err = d.Request(0x10, &multipleRegs{Addr: startAddr, NRegs: nReg, NBytes: uint8(nBytes), Values: data}, nil, expected)
+	opts = append(opts, modbus.ExpectedRespLen(1+2+2))
+	err = d.Request(0x10, &multipleRegs{Addr: startAddr, NRegs: nReg, NBytes: uint8(nBytes), Values: data}, nil, opts...)
 	return
 }
 
@@ -179,7 +179,7 @@ func ParseAddr(addrStr string) (addr uint16, err error) {
 	return uint16(u64) + uint16(offset), nil
 }
 
-func ParseModiconNum(d modbus.StdRegisterFuncs, value string) (addr uint16, f Func, err error) {
+func ParseModiconNum(d modbus.StdRegisterFuncs, value string) (addr uint16, f ReadFunc, err error) {
 	value, offset, err := parseOffset(value)
 	if err != nil {
 		return 0, nil, err
