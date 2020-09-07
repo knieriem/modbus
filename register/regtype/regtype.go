@@ -489,17 +489,17 @@ func parseValueSpec(dest []Value, s string) (vlist []Value, nRegs int, err error
 			typeSpec = "u"
 		}
 	}
-	item, err := parseType(typeSpec)
+	ts, err := scanTypeSpec(typeSpec)
 	if err != nil {
 		return
 	}
-	d, ok := types[item.typeName]
+	d, ok := types[ts.name]
 	if !ok {
 		err = errors.New("unknown type")
 		return
 	}
 
-	count := item.n
+	count := ts.n
 	var args []string
 	if strings.HasPrefix(s, `"`) {
 		s, err = strconv.Unquote(s)
@@ -534,47 +534,50 @@ func parseValueSpec(dest []Value, s string) (vlist []Value, nRegs int, err error
 			err = err1
 			return
 		}
-		vlist = append(vlist, Value{baseValue: v, byteOrder: item.byteOrder})
+		vlist = append(vlist, Value{baseValue: v, byteOrder: ts.byteOrder})
 	}
 	nRegs = count * d.size
 	return
 }
 
-type Item struct {
+type TypeSpec struct {
 	*def
 	byteOrder binary.ByteOrder
 	fmt       string
 	n         int
 	div       uint
 	divDigits int
-	typeName  string
+	name      string
 	mf        ModifierFunc
 }
 
-func parseTypeSpec(s string) (item Item, err error) {
-	item, err = parseType(s)
-	if err != nil {
-		return
-	}
-	if item.n == 0 {
-		item.n = 1
-	}
-	if item.typeName == "" {
-		item.typeName = "u"
-	}
-	d, ok := types[item.typeName]
-	if !ok {
-		err = errors.New("unknown type")
-		return
-	}
-	if item.fmt == "" {
-		item.fmt = d.fmt
-	}
-	item.def = d
-	return
+func (ts *TypeSpec) NReg() int {
+	return ts.n * ts.def.size
 }
 
-func parseType(s string) (item Item, err error) {
+func ParseTypeSpec(s string) (ts *TypeSpec, err error) {
+	ts, err = scanTypeSpec(s)
+	if err != nil {
+		return nil, err
+	}
+	if ts.n == 0 {
+		ts.n = 1
+	}
+	if ts.name == "" {
+		ts.name = "u"
+	}
+	d, ok := types[ts.name]
+	if !ok {
+		return nil, errors.New("unknown type")
+	}
+	if ts.fmt == "" {
+		ts.fmt = d.fmt
+	}
+	ts.def = d
+	return ts, nil
+}
+
+func scanTypeSpec(s string) (*TypeSpec, error) {
 	count := s
 	typeName := ""
 	for i, r := range s {
@@ -591,54 +594,53 @@ func parseType(s string) (item Item, err error) {
 		}
 		break
 	}
+	ts := new(TypeSpec)
 	if count != "" {
-		n64, err1 := strconv.ParseUint(count, 10, 8)
-		if err1 != nil {
-			err = err1
-			return
+		n64, err := strconv.ParseUint(count, 10, 8)
+		if err != nil {
+			return nil, err
 		}
-		item.n = int(n64)
+		ts.n = int(n64)
 	}
 	if i := strings.LastIndexByte(typeName, '/'); i != -1 {
 		divstr := typeName[i:]
 		typeName = typeName[:i]
 		if i := strings.LastIndexByte(divstr, '%'); i != -1 {
-			item.fmt = divstr[i:]
+			ts.fmt = divstr[i:]
 			divstr = divstr[:i]
 		}
-		u, err1 := strconv.ParseUint(divstr[1:], 10, 32)
-		if err1 != nil {
-			err = err1
-			return
+		u, err := strconv.ParseUint(divstr[1:], 10, 32)
+		if err != nil {
+			return nil, err
 		}
-		item.div = uint(u)
+		ts.div = uint(u)
 		switch {
 		default:
-			item.divDigits = 0
-		case item.div > 1e5:
-			item.divDigits = 6
-		case item.div > 1e4:
-			item.divDigits = 5
-		case item.div > 1e3:
-			item.divDigits = 4
-		case item.div > 100:
-			item.divDigits = 3
-		case item.div > 10:
-			item.divDigits = 2
-		case item.div > 1:
-			item.divDigits = 1
+			ts.divDigits = 0
+		case ts.div > 1e5:
+			ts.divDigits = 6
+		case ts.div > 1e4:
+			ts.divDigits = 5
+		case ts.div > 1e3:
+			ts.divDigits = 4
+		case ts.div > 100:
+			ts.divDigits = 3
+		case ts.div > 10:
+			ts.divDigits = 2
+		case ts.div > 1:
+			ts.divDigits = 1
 		}
 	} else if i := strings.LastIndex(typeName, "%"); i != -1 {
-		item.fmt = typeName[i:]
+		ts.fmt = typeName[i:]
 		typeName = typeName[:i]
 	}
 	if i := strings.IndexByte(typeName, '.'); i != -1 {
 		mod := typeName[i+1:]
 		mf, ok := modMap[mod]
 		if !ok {
-			return item, errors.New("unknown modifier: " + strconv.Quote(mod))
+			return ts, errors.New("unknown modifier: " + strconv.Quote(mod))
 		}
-		item.mf = mf
+		ts.mf = mf
 		typeName = typeName[:i]
 	}
 	if n := len(typeName); n > 4 {
@@ -649,9 +651,9 @@ func parseType(s string) (item Item, err error) {
 			default:
 				break testByteOrderSuffix
 			case "le":
-				item.byteOrder = binary.LittleEndian
+				ts.byteOrder = binary.LittleEndian
 			case "lb":
-				item.byteOrder = littleEndianBytesSwapped{}
+				ts.byteOrder = littleEndianBytesSwapped{}
 			}
 			typeName = typeName[:n-2]
 			if strings.HasSuffix(typeName, "16") {
@@ -659,8 +661,8 @@ func parseType(s string) (item Item, err error) {
 			}
 		}
 	}
-	item.typeName = typeName
-	return
+	ts.name = typeName
+	return ts, nil
 }
 
 func ParseValues(values []string) (vlist []Value, nRegs int, err error) {
@@ -694,17 +696,16 @@ func ParseValues(values []string) (vlist []Value, nRegs int, err error) {
 	return
 }
 
-func ParseSpecs(specs []string) (list []Item, nBytes int, err error) {
+func ParseSpecs(specs []string) (list []*TypeSpec, nBytes int, err error) {
 	for _, s := range specs {
-		i, err1 := parseTypeSpec(s)
-		if err1 != nil {
-			err = err1
-			return
+		ts, err := ParseTypeSpec(s)
+		if err != nil {
+			return nil, 0, err
 		}
-		list = append(list, i)
-		nBytes += (i.n * i.def.size) * 2
+		list = append(list, ts)
+		nBytes += ts.NReg() * 2
 	}
-	return
+	return list, nBytes, err
 }
 
 type EncodingOption func(*encOptions)
@@ -740,50 +741,50 @@ func Encode(b []byte, vlist []Value, opts ...EncodingOption) (err error) {
 	return
 }
 
-func Decode(b []byte, list []Item, opts ...EncodingOption) (vlist []Value) {
+func Decode(b []byte, specs []*TypeSpec, opts ...EncodingOption) []Value {
 	e := setupEncOptions(opts)
 
 	r := bytes.NewReader(b)
 
 	/* pre-allocate vlist */
 	numVal := 0
-	for _, item := range list {
-		numVal += item.n
+	for _, ts := range specs {
+		numVal += ts.n
 	}
-	vlist = make([]Value, 0, numVal)
+	vlist := make([]Value, 0, numVal)
 
-	for _, item := range list {
-		sl := item.makeSlice(item.n)
+	for _, ts := range specs {
+		sl := ts.makeSlice(ts.n)
 		bo := e.byteOrder
-		if item.byteOrder != nil {
-			bo = item.byteOrder
+		if ts.byteOrder != nil {
+			bo = ts.byteOrder
 		}
 		err := binary.Read(r, bo, sl)
 		if err != nil {
-			return
+			return nil
 		}
 		if bv, ok := sl.(baseValue); ok {
 			vlist = append(vlist, Value{baseValue: bv})
 			continue
 		}
 		v := reflect.ValueOf(sl)
-		for i := 0; i < item.n; i++ {
+		for i := 0; i < ts.n; i++ {
 			val := v.Index(i).Interface().(baseValue)
-			if mf := item.mf; mf != nil {
-				val = item.mf(val)
+			if mf := ts.mf; mf != nil {
+				val = ts.mf(val)
 			}
 			if inbandErr(val) == nil {
-				if item.div != 0 {
-					val = &divValue{div: item.div, baseValue: val, prec: item.divDigits}
+				if ts.div != 0 {
+					val = &divValue{div: ts.div, baseValue: val, prec: ts.divDigits}
 				}
-				if item.fmt != "" {
-					val = &fmtValue{fmt: item.fmt, baseValue: val}
+				if ts.fmt != "" {
+					val = &fmtValue{fmt: ts.fmt, baseValue: val}
 				}
 			}
 			vlist = append(vlist, Value{baseValue: val})
 		}
 	}
-	return
+	return vlist
 }
 
 func setupEncOptions(opts []EncodingOption) *encOptions {
