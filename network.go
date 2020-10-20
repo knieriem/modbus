@@ -104,11 +104,13 @@ func (adu *ADU) AddrPDU() (uint8, []byte) {
 type Network struct {
 	conn NetConn
 
-	Tracef          func(format string, a ...interface{})
+	Tracef          TraceFunc
 	ResponseTimeout time.Duration
 	TurnaroundDelay time.Duration
 	RequestStats    RequestStats
 }
+
+type TraceFunc func(format string, a ...interface{})
 
 func NewNetwork(conn NetConn) (netw *Network) {
 	netw = new(Network)
@@ -229,6 +231,7 @@ type reqOptions struct {
 	nRetriesOnInvalidReply int
 	retryDelay             time.Duration
 	expectedLenSpec        *ExpectedRespLenSpec
+	tracef                 func(format string, a ...interface{})
 }
 
 // ExpectedRespLen is a request option that specifies
@@ -298,9 +301,16 @@ func VariableRespLen(vs *VariableRespLenSpec) ReqOption {
 	}
 }
 
+func WithTraceFunc(f TraceFunc) ReqOption {
+	return func(r *reqOptions) {
+		r.tracef = f
+	}
+}
+
 func (netw *Network) Request(addr, fn uint8, req Request, resp Response, opts ...ReqOption) (err error) {
 	var rqo reqOptions
 	rqo.timeout = netw.ResponseTimeout
+	rqo.tracef = netw.Tracef
 	if i, ok := resp.(interface{ ExpectedLenSpec() *ExpectedRespLenSpec }); ok {
 		rqo.expectedLenSpec = i.ExpectedLenSpec()
 	}
@@ -331,8 +341,8 @@ retry:
 	if err != nil {
 		return
 	}
-	if netw.Tracef != nil {
-		netw.Tracef("<- %s [%d] % x\n", netw.conn.Name(), len(sent), sent)
+	if tf := rqo.tracef; tf != nil {
+		tf("<- %s [%d] % x\n", netw.conn.Name(), len(sent), sent)
 	}
 	if addr == 0 {
 		time.Sleep(netw.TurnaroundDelay)
@@ -365,12 +375,12 @@ retry:
 			}
 		}
 	}
-	if netw.Tracef != nil {
+	if tf := rqo.tracef; tf != nil {
 		if err != nil {
-			netw.Tracef("-> %s [%d] % x error: %v\n", netw.conn.Name(), len(buf), buf, err)
+			tf("-> %s [%d] % x error: %v\n", netw.conn.Name(), len(buf), buf, err)
 			return
 		}
-		netw.Tracef("-> %s [%d] % x\n", netw.conn.Name(), len(buf), buf)
+		tf("-> %s [%d] % x\n", netw.conn.Name(), len(buf), buf)
 	}
 	if err != nil {
 		if err == ErrTimeout {
