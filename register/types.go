@@ -157,6 +157,10 @@ func StopAtZero(buf []byte) []byte {
 	return buf
 }
 
+func TrimLeftSpace(buf []byte) []byte {
+	return bytes.TrimLeft(buf, " \x00\xff")
+}
+
 func TrimRightSpace(buf []byte) []byte {
 	return bytes.TrimRight(buf, " \x00\xff")
 }

@@ -435,6 +435,58 @@ func newStringBS(s string) (v baseValue, err error) {
 	return newstr(s, makeStringBS)
 }
 
+type procValue struct {
+	baseValue
+	opts string
+}
+
+func (v *procValue) Value() interface{} {
+	var s string
+	quote := false
+	switch b := v.baseValue.(type) {
+	case StringBS, String:
+		filters := make([]func([]byte) []byte, 0, len(v.opts))
+		for _, c := range v.opts {
+			switch c {
+			case 0:
+				return errors.New(",!(procOpt missing)")
+			default:
+				return fmt.Errorf(",!(procOpt=%q)", c)
+			case '<':
+				filters = append(filters, register.TrimRightSpace)
+			case '>':
+				filters = append(filters, register.TrimLeftSpace)
+			case '0':
+				filters = append(filters, register.StopAtZero)
+			case 'o':
+				filters = append(filters, func(b []byte) []byte {
+					if n := len(b); n > 1 {
+						b = b[:n-1]
+					}
+					return b
+				})
+			case 'q':
+				quote = true
+			}
+		}
+		s = register.DecodeString(b, filters...)
+	default:
+		return v.baseValue.Value()
+	}
+	if quote {
+		s = strconv.Quote(s)
+	}
+	return s
+}
+
+func (v *procValue) Format() string {
+	switch v.baseValue.(type) {
+	case StringBS, String:
+		return v.Value().(string)
+	}
+	return v.baseValue.Format()
+}
+
 type fmtValue struct {
 	baseValue
 	fmt string
@@ -549,6 +601,7 @@ type TypeSpec struct {
 	divDigits int
 	name      string
 	mf        ModifierFunc
+	procOpts  string
 }
 
 func (ts *TypeSpec) NReg() int {
@@ -641,6 +694,14 @@ func scanTypeSpec(s string) (*TypeSpec, error) {
 			return ts, errors.New("unknown modifier: " + strconv.Quote(mod))
 		}
 		ts.mf = mf
+		typeName = typeName[:i]
+	}
+	if i := strings.IndexByte(typeName, ','); i != -1 {
+		o := typeName[i+1:]
+		if o == "" {
+			o = "\x00"
+		}
+		ts.procOpts = o
 		typeName = typeName[:i]
 	}
 	if n := len(typeName); n > 4 {
@@ -764,6 +825,11 @@ func Decode(b []byte, specs []*TypeSpec, opts ...EncodingOption) []Value {
 			return nil
 		}
 		if bv, ok := sl.(baseValue); ok {
+			if inbandErr(bv) == nil {
+				if ts.procOpts != "" {
+					bv = &procValue{opts: ts.procOpts, baseValue: bv}
+				}
+			}
 			vlist = append(vlist, Value{baseValue: bv})
 			continue
 		}
