@@ -91,7 +91,14 @@ func (adu *ADU) AddrPDU() (uint8, []byte) {
 	if end < adu.PDUStart {
 		return 0, nil
 	}
-	return adu.Bytes[adu.PDUStart-1], adu.Bytes[adu.PDUStart:end]
+	addr := adu.Bytes[adu.PDUStart-1]
+
+	// Set the capacity of the PDU to the maximum possible value,
+	// leaving space for an optional CRC. This way a function
+	// handler may decide whether the slice may be used to
+	// store a response.
+	pdu := adu.Bytes[adu.PDUStart : end : cap(adu.Bytes)+adu.PDUEnd]
+	return addr, pdu
 }
 
 type Network struct {
