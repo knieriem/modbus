@@ -230,6 +230,7 @@ type reqOptions struct {
 	nRetriesOnTimeout      int
 	nRetriesOnInvalidReply int
 	retryDelay             time.Duration
+	retryFunc              RetryFunc
 	expectedLenSpec        *ExpectedRespLenSpec
 	tracef                 func(format string, a ...interface{})
 }
@@ -273,6 +274,40 @@ func RetryOnInvalidReply(n int, retryDelay time.Duration) ReqOption {
 		r.nRetriesOnInvalidReply = n
 		r.retryDelay = retryDelay
 	}
+}
+
+// A RetryFunc examines err and the number of
+// retries already performed, and decides if a Request
+// shall be retried. In this case it returns true,
+// otherwise false.
+type RetryFunc func(err error, numRetries int) bool
+
+func WithRetryFunc(retry RetryFunc) ReqOption {
+	return func(r *reqOptions) {
+		r.retryFunc = retry
+	}
+}
+
+func (rqo *reqOptions) canRetry(err error, n int) bool {
+	if retry := rqo.retryFunc; retry != nil {
+		if retry(err, n) {
+			return true
+		}
+	}
+	if err == ErrTimeout {
+		if n < rqo.nRetriesOnTimeout {
+			rqo.timeout += rqo.timeoutIncr
+			return true
+		}
+	} else if n < rqo.nRetriesOnInvalidReply {
+		if MsgInvalid(err) {
+			if rqo.retryDelay > 0 {
+				time.Sleep(rqo.retryDelay)
+			}
+			return true
+		}
+	}
+	return false
 }
 
 type ExpectedRespLenSpec struct {
@@ -383,20 +418,9 @@ retry:
 		tf("-> %s [%d] % x\n", netw.conn.Name(), len(buf), buf)
 	}
 	if err != nil {
-		if err == ErrTimeout {
-			if nRetries < rqo.nRetriesOnTimeout {
-				nRetries++
-				rqo.timeout += rqo.timeoutIncr
-				goto retry
-			}
-		} else if nRetries < rqo.nRetriesOnInvalidReply {
-			if MsgInvalid(err) {
-				if rqo.retryDelay > 0 {
-					time.Sleep(rqo.retryDelay)
-				}
-				nRetries++
-				goto retry
-			}
+		if rqo.canRetry(err, nRetries) {
+			nRetries++
+			goto retry
 		}
 		return err
 	}
@@ -416,6 +440,10 @@ retry:
 			return
 		}
 		err = Exception(pdu[1])
+		if rqo.canRetry(err, nRetries) {
+			nRetries++
+			goto retry
+		}
 		return
 	}
 	if resp != nil {
