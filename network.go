@@ -413,9 +413,9 @@ retry:
 	if tf := rqo.tracef; tf != nil {
 		if err != nil {
 			tf("-> %s [%d] % x error: %v\n", netw.conn.Name(), len(buf), buf, err)
-			return
+		} else {
+			tf("-> %s [%d] % x\n", netw.conn.Name(), len(buf), buf)
 		}
-		tf("-> %s [%d] % x\n", netw.conn.Name(), len(buf), buf)
 	}
 	if err != nil {
 		if rqo.canRetry(err, nRetries) {
