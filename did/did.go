@@ -87,8 +87,8 @@ type respHdr struct {
 	NObj        byte
 }
 
-func (r *Reader) ReadObject(id ID) (o Object, err error) {
-	list, err := r.Read(Single, id)
+func (r *Reader) ReadObject(id ID, reqOpts ...modbus.ReqOption) (o Object, err error) {
+	list, err := r.Read(Single, id, reqOpts...)
 	if err != nil {
 		return
 	}
@@ -96,7 +96,7 @@ func (r *Reader) ReadObject(id ID) (o Object, err error) {
 	return
 }
 
-func (r *Reader) Read(cat Category, startID ID) (list []Object, err error) {
+func (r *Reader) Read(cat Category, startID ID, reqOpts ...modbus.ReqOption) (list []Object, err error) {
 	forceID := false
 more:
 	req := []byte{byte(cat), byte(startID)}
@@ -104,7 +104,8 @@ more:
 		NumItemsIndex: 6,
 		ItemLenIndex:  1,
 	}
-	resp, err := r.tp.Request(req, modbus.VariableRespLen(vs))
+	opts := append(reqOpts, modbus.VariableRespLen(vs))
+	resp, err := r.tp.Request(req, opts...)
 	if err != nil {
 		return
 	}
