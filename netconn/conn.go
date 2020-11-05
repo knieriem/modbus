@@ -13,11 +13,6 @@ import (
 )
 
 var protos = make(map[string]*Proto, 4)
-var defaultProto *Proto
-
-func SetDefaultProto(name string) {
-	defaultProto = protos[name]
-}
 
 func RegisterProtocol(proto *Proto) {
 	protos[proto.Name] = proto
@@ -420,7 +415,7 @@ optLoop:
 	return
 }
 
-func (list ConfList) Match(connSpec string) (index int, mod *Conf, err error) {
+func (list ConfList) Match(connSpec, defaultProto string) (index int, mod *Conf, err error) {
 	if connSpec == "" {
 		index = list.Default()
 		return
@@ -460,7 +455,7 @@ retry:
 
 		// Otherwise, try again after inserting the default
 		// protocol name.
-		if p := defaultProto; p != nil {
+		if p := protos[defaultProto]; p != nil {
 			connSpec = p.Name + ":" + connSpec
 		}
 		goto retry
@@ -470,8 +465,11 @@ retry:
 	return
 }
 
-func (list ConfList) Dial(connSpec string) (conn *Conn, err error) {
-	index, cf, err := list.Match(connSpec)
+func (list ConfList) dial(connSpec, defaultProto string) (conn *Conn, err error) {
+	if len(list) == 0 {
+		return nil, errors.New("no net configuration found")
+	}
+	index, cf, err := list.Match(connSpec, defaultProto)
 	if err != nil {
 		return
 	}
@@ -479,4 +477,33 @@ func (list ConfList) Dial(connSpec string) (conn *Conn, err error) {
 		cf = list[index]
 	}
 	return cf.Dial()
+}
+
+func Dial(connSpec string, opts ...DialOption) (*Conn, error) {
+	var c dialConf
+	c.list = ConfList{&Conf{}}
+	c.defaultProto = "rtu"
+	for _, o := range opts {
+		o(&c)
+	}
+	return c.list.dial(connSpec, c.defaultProto)
+}
+
+type DialOption func(*dialConf)
+
+type dialConf struct {
+	defaultProto string
+	list         ConfList
+}
+
+func WithConfList(list ConfList) DialOption {
+	return func(c *dialConf) {
+		c.list = list
+	}
+}
+
+func WithDefaultProto(proto string) DialOption {
+	return func(c *dialConf) {
+		c.defaultProto = proto
+	}
 }
