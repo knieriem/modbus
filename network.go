@@ -2,7 +2,9 @@ package modbus
 
 import (
 	"bytes"
+	"context"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"io"
 	"strconv"
@@ -62,7 +64,7 @@ type NetConn interface {
 	Name() string
 	MsgWriter() io.Writer
 	Send() ([]byte, error)
-	Receive(timeout time.Duration, ls *ExpectedRespLenSpec) (ADU, error)
+	Receive(ctx context.Context, timeout time.Duration, ls *ExpectedRespLenSpec) (ADU, error)
 	Device() interface{}
 }
 
@@ -224,6 +226,7 @@ type Bus interface {
 type ReqOption func(*reqOptions)
 
 type reqOptions struct {
+	ctx                    context.Context
 	timeout                time.Duration
 	timeoutIncr            time.Duration
 	waitFull               time.Duration
@@ -233,6 +236,12 @@ type reqOptions struct {
 	retryFunc              RetryFunc
 	expectedLenSpec        *ExpectedRespLenSpec
 	tracef                 func(format string, a ...interface{})
+}
+
+func WithContext(ctx context.Context) ReqOption {
+	return func(r *reqOptions) {
+		r.ctx = ctx
+	}
 }
 
 // ExpectedRespLen is a request option that specifies
@@ -344,6 +353,7 @@ func WithTraceFunc(f TraceFunc) ReqOption {
 
 func (netw *Network) Request(addr, fn uint8, req Request, resp Response, opts ...ReqOption) (err error) {
 	var rqo reqOptions
+	rqo.ctx = context.TODO()
 	rqo.timeout = netw.ResponseTimeout
 	rqo.tracef = netw.Tracef
 	if i, ok := resp.(interface{ ExpectedLenSpec() *ExpectedRespLenSpec }); ok {
@@ -394,7 +404,7 @@ retry:
 		}()
 	}
 
-	adu, err := netw.conn.Receive(rqo.timeout, rqo.expectedLenSpec)
+	adu, err := netw.conn.Receive(rqo.ctx, rqo.timeout, rqo.expectedLenSpec)
 
 	buf := adu.Bytes
 	respAddr, pdu := adu.AddrPDU()
@@ -418,6 +428,9 @@ retry:
 		}
 	}
 	if err != nil {
+		if errors.Is(err, context.Canceled) {
+			return err
+		}
 		if rqo.canRetry(err, nRetries) {
 			nRetries++
 			goto retry

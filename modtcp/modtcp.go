@@ -2,6 +2,7 @@ package modtcp
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"io"
 	"net"
@@ -70,10 +71,6 @@ func NewNetConn(conn net.Conn) (m *Conn) {
 	return
 }
 
-func (m *Conn) SetIntrC(c <-chan error) {
-	m.readMgr.IntrC = c
-}
-
 func (m *Conn) Name() string {
 	return "tcp"
 }
@@ -107,7 +104,7 @@ func (m *Conn) Send() (buf []byte, err error) {
 	return
 }
 
-func (m *Conn) Receive(tMax time.Duration, ls *modbus.ExpectedRespLenSpec) (adu modbus.ADU, err error) {
+func (m *Conn) Receive(ctx context.Context, tMax time.Duration, ls *modbus.ExpectedRespLenSpec) (adu modbus.ADU, err error) {
 	if f := m.OnReceiveError; f != nil {
 		defer func() {
 			if err != nil {
@@ -117,7 +114,7 @@ func (m *Conn) Receive(tMax time.Duration, ls *modbus.ExpectedRespLenSpec) (adu 
 	}
 
 retry:
-	adu.Bytes, err = m.readMgr.Read(tMax, tMax)
+	adu.Bytes, err = m.readMgr.Read(ctx, tMax, tMax)
 	if err != nil {
 		return
 	}

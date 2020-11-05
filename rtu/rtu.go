@@ -2,6 +2,7 @@ package rtu
 
 import (
 	"bytes"
+	"context"
 	"io"
 	"os"
 	"time"
@@ -78,10 +79,6 @@ func (h *Hash) Sum(in []byte) []byte {
 	return append(in, byte(s&0xFF), byte(s>>8))
 }
 
-func (m *Conn) SetIntrC(c <-chan error) {
-	m.readMgr.IntrC = c
-}
-
 func (m *Conn) Name() string {
 	return "rtu"
 }
@@ -121,7 +118,7 @@ func (m *Conn) Send() (buf []byte, err error) {
 	return
 }
 
-func (m *Conn) Receive(tMax time.Duration, ls *modbus.ExpectedRespLenSpec) (adu modbus.ADU, err error) {
+func (m *Conn) Receive(ctx context.Context, tMax time.Duration, ls *modbus.ExpectedRespLenSpec) (adu modbus.ADU, err error) {
 	if f := m.OnReceiveError; f != nil {
 		defer func() {
 			if err != nil {
@@ -131,7 +128,7 @@ func (m *Conn) Receive(tMax time.Duration, ls *modbus.ExpectedRespLenSpec) (adu 
 	}
 	m.h.Reset()
 	m.expectedLenSpec = ls
-	adu.Bytes, err = m.readMgr.Read(tMax, m.InterframeTimeout)
+	adu.Bytes, err = m.readMgr.Read(ctx, tMax, m.InterframeTimeout)
 	if err != nil {
 		return
 	}

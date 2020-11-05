@@ -2,6 +2,7 @@ package rtu
 
 import (
 	"bytes"
+	"context"
 	"io"
 	"time"
 
@@ -17,7 +18,6 @@ type ReadMgr struct {
 	eof         bool
 	Forward     io.Writer
 	MsgComplete func([]byte) bool
-	IntrC       <-chan error
 	CheckBytes  func(bnew []byte, msg []byte) bool
 }
 
@@ -52,7 +52,7 @@ func (m *ReadMgr) Cancel() {
 	m.req <- nil
 }
 
-func (m *ReadMgr) Read(tMax, interframeTimeoutMax time.Duration) (buf []byte, err error) {
+func (m *ReadMgr) Read(ctx context.Context, tMax, interframeTimeoutMax time.Duration) (buf []byte, err error) {
 	if m.eof {
 		err = io.EOF
 		return
@@ -128,7 +128,8 @@ readLoop:
 				continue
 			}
 			break readLoop
-		case err = <-m.IntrC:
+		case <-ctx.Done():
+			err = ctx.Err()
 			break readLoop
 		}
 	}
