@@ -25,7 +25,7 @@ type ReadFunc func() ([]byte, error)
 
 func NewReadMgr(rf ReadFunc, exitC chan<- error) *ReadMgr {
 	m := new(ReadMgr)
-	m.buf = make([]byte, 0, 64)
+	m.buf = make([]byte, 0, 256)
 	m.req = make(chan []byte)
 	m.done = make(chan readResult)
 	m.errC = make(chan error)
