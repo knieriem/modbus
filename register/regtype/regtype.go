@@ -8,6 +8,7 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/knieriem/modbus"
 	"github.com/knieriem/modbus/register"
@@ -127,6 +128,11 @@ var types = map[string]*def{
 		makeSlice: makeStringBS,
 		parse:     newStringBS,
 		size:      1,
+	},
+	"date": {
+		makeSlice: makeDate,
+		parse:     newDate,
+		size:      3,
 	},
 	"_": {
 		makeSlice: makeIgnored,
@@ -389,6 +395,41 @@ func newFloat64(s string) (v baseValue, err error) {
 	}
 	v = Float64(f)
 	return
+}
+
+type Date struct {
+	Year  uint16
+	Month uint16
+	Day   uint16
+}
+
+func (d *Date) Format() string {
+	return fmt.Sprintf("%04d-%02d-%02d", d.Year, d.Month, d.Day)
+}
+
+func (d *Date) Value() interface{} {
+	return d
+}
+
+func (d *Date) In(loc *time.Location) time.Time {
+	return time.Date(int(d.Year), time.Month(d.Month), int(d.Day), 0, 0, 0, 0, loc)
+}
+
+func makeDate(n int) interface{} {
+	return make([]Date, n)
+}
+
+func newDate(s string) (v baseValue, err error) {
+	t, err := time.Parse("2006-01-02", s)
+	if err != nil {
+		return nil, err
+	}
+	var date Date
+	y, m, d := t.Date()
+	date.Year = uint16(y)
+	date.Month = uint16(m)
+	date.Day = uint16(d)
+	return &date, nil
 }
 
 type String []register.PackedBytesBig
