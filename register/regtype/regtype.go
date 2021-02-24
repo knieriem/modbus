@@ -57,8 +57,6 @@ func (v Value) Err() error {
 	return inbandErr(v.baseValue)
 }
 
-// Schreibweise mit %format !!!!!
-
 var types = map[string]*def{
 	"f": {
 		makeSlice: makeFloat32,
