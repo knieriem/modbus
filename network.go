@@ -109,7 +109,6 @@ type Network struct {
 	Tracef          TraceFunc
 	ResponseTimeout time.Duration
 	TurnaroundDelay time.Duration
-	RequestStats    RequestStats
 }
 
 type TraceFunc func(format string, a ...interface{})
@@ -362,9 +361,7 @@ func (netw *Network) Request(addr, fn uint8, req Request, resp Response, opts ..
 	for _, o := range opts {
 		o(&rqo)
 	}
-	defer func() {
-		netw.RequestStats.Update(err)
-	}()
+
 
 	nRetries := 0
 retry:
