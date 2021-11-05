@@ -546,7 +546,6 @@ func MsgInvalid(err error) bool {
 	default:
 		return false
 	case ErrInvalidEchoLen:
-	case XGwTargetFailedToRespond:
 	case ErrCRC:
 	}
 	return true
