@@ -63,7 +63,7 @@ func (x Exception) Error() string {
 type NetConn interface {
 	Name() string
 	MsgWriter() io.Writer
-	Send() ([]byte, error)
+	Send() (ADU, error)
 	Receive(ctx context.Context, timeout time.Duration, ls *ExpectedRespLenSpec) (ADU, error)
 	Device() interface{}
 }
@@ -80,20 +80,33 @@ type ADU struct {
 	PDUEnd int
 }
 
+func (adu *ADU) Valid() bool {
+	if adu.PDUStart < 1 {
+		return false
+	}
+	n := len(adu.Bytes)
+	if n < adu.PDUStart {
+		return false
+	}
+	pduEnd := n + adu.PDUEnd
+	if pduEnd <= adu.PDUStart {
+		return false
+	}
+	return true
+}
+
 // AddrPDU returns the address and the PDU parts of
 // an ADU. It assumes that the address always is in the
 // byte before the PDU.
 // AddrPDU returns zero and nil in case the length of
 // the ADU is too small.
 func (adu *ADU) AddrPDU() (uint8, []byte) {
-	if adu.PDUStart == 0 {
+	if !adu.Valid() {
 		return 0, nil
 	}
-	end := len(adu.Bytes) + adu.PDUEnd
-	if end < adu.PDUStart {
-		return 0, nil
-	}
+
 	addr := adu.Bytes[adu.PDUStart-1]
+	end := len(adu.Bytes) + adu.PDUEnd
 
 	// Set the capacity of the PDU to the maximum possible value,
 	// leaving space for an optional CRC. This way a function
@@ -149,7 +162,35 @@ func (lt *longTurnaroundStatus) allowed(addr uint8, minElapsed time.Duration) bo
 	return true
 }
 
-type TraceFunc func(format string, a ...interface{})
+type TraceFunc func(msgDir string, adu ADU, err error, netConnName string)
+
+func (t TraceFunc) withNetConnName(ncName string) TraceFunc {
+	if t == nil {
+		return nil
+	}
+	return func(msgDir string, adu ADU, err error, _ string) {
+		t(msgDir, adu, err, ncName)
+	}
+}
+
+func (t TraceFunc) req(adu ADU, err error) {
+	if t == nil {
+		return
+	}
+	t(MsgDirReq, adu, err, "")
+}
+
+func (t TraceFunc) resp(adu ADU, err error) {
+	if t == nil {
+		return
+	}
+	t(MsgDirResp, adu, err, "")
+}
+
+const (
+	MsgDirReq  = "<-"
+	MsgDirResp = "->"
+)
 
 func NewNetwork(conn NetConn) (netw *Network) {
 	netw = new(Network)
@@ -273,7 +314,7 @@ type reqOptions struct {
 	retryDelay             time.Duration
 	retryFunc              RetryFunc
 	expectedLenSpec        *ExpectedRespLenSpec
-	tracef                 func(format string, a ...interface{})
+	tracef                 TraceFunc
 	longTurnaroundTime     struct {
 		minElapsedSincePrev time.Duration
 		minDuration         time.Duration
@@ -417,9 +458,11 @@ func (netw *Network) Request(addr, fn uint8, req Request, resp Response, opts ..
 	for _, o := range opts {
 		o(&rqo)
 	}
+	trace := rqo.tracef.withNetConnName(netw.conn.Name())
 
 	if minElapsed := rqo.longTurnaroundTime.minElapsedSincePrev; minElapsed != 0 {
 		if !netw.longTurnaroundTime.allowed(addr, minElapsed) {
+			trace.req(ADU{Bytes: []byte{addr, fn}, PDUStart: 1}, err)
 			return ErrRejected
 		}
 	}
@@ -440,12 +483,10 @@ retry:
 		return ErrMaxReqLenExceeded
 	}
 
-	sent, err := netw.conn.Send()
+	sentADU, err := netw.conn.Send()
+	trace.req(sentADU, err)
 	if err != nil {
 		return
-	}
-	if tf := rqo.tracef; tf != nil {
-		tf("<- %s [%d] % x\n", netw.conn.Name(), len(sent), sent)
 	}
 	if addr == 0 {
 		time.Sleep(netw.TurnaroundDelay)
@@ -481,19 +522,13 @@ retry:
 		if !want.matchAddr(have) || !want.matchFn(have) {
 			err = &MismatchError{Req: want, Resp: have, origErr: err}
 		} else if err != nil {
-			if bytes.Equal(buf, sent) {
+			if bytes.Equal(buf, sentADU.Bytes) {
 				err = ErrUnexpectedEcho
 			}
 		}
 	}
-	if tf := rqo.tracef; tf != nil {
-		if err != nil {
-			tf("-> %s [%d] % x error: %v\n", netw.conn.Name(), len(buf), buf, err)
-		} else {
-			tf("-> %s [%d] % x\n", netw.conn.Name(), len(buf), buf)
-		}
-	}
 	if err != nil {
+		trace.resp(adu, err)
 		if errors.Is(err, context.Canceled) {
 			return err
 		}
@@ -509,9 +544,10 @@ retry:
 	if ls := rqo.expectedLenSpec; ls != nil {
 		err = ls.CheckLen(pdu)
 		if err != nil {
-			if bytes.Equal(buf, sent) {
+			if bytes.Equal(buf, sentADU.Bytes) {
 				err = ErrUnexpectedEcho
 			}
+			trace.resp(adu, err)
 			return
 		}
 	}
@@ -522,6 +558,7 @@ retry:
 			return
 		}
 		err = Exception(pdu[1])
+		trace.resp(adu, err)
 		if respDelayed {
 			if err == XGwPathUnavail || err == XGwTargetFailedToRespond {
 				netw.longTurnaroundTime.record(tResp, addr)
@@ -536,6 +573,7 @@ retry:
 	if resp != nil {
 		err = resp.Decode(pdu[1:])
 	}
+	trace.resp(adu, err)
 	return
 }
 

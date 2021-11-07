@@ -86,22 +86,24 @@ func (m *Conn) MsgWriter() (w io.Writer) {
 	return b
 }
 
-func (m *Conn) Send() (buf []byte, err error) {
+func (m *Conn) Send() (adu modbus.ADU, err error) {
 	b := m.buf
-	err = m.readMgr.Start()
-	if err != nil {
-		return
-	}
-	buf = b.Bytes()
+	buf := b.Bytes()
 	m.transactionID++
 	bo.PutUint16(buf[hdrPosTxnID:], m.transactionID)
 	bo.PutUint16(buf[hdrPosLen:], uint16(len(buf[hdrSize:])))
 
+	adu.PDUStart = mbapHdrSize
+	adu.Bytes = buf
+	err = m.readMgr.Start()
+	if err != nil {
+		return adu, err
+	}
 	_, err = b.WriteTo(m.conn)
 	if err != nil {
 		m.readMgr.Cancel()
 	}
-	return
+	return adu, err
 }
 
 func (m *Conn) Receive(ctx context.Context, tMax time.Duration, ls *modbus.ExpectedRespLenSpec) (adu modbus.ADU, err error) {
@@ -114,6 +116,7 @@ func (m *Conn) Receive(ctx context.Context, tMax time.Duration, ls *modbus.Expec
 	}
 
 retry:
+	adu.PDUStart = mbapHdrSize
 	adu.Bytes, err = m.readMgr.Read(ctx, tMax, tMax)
 	if err != nil {
 		return
@@ -133,8 +136,6 @@ retry:
 		err = modbus.NewInvalidLen(modbus.MsgContextADU, n, length)
 		return
 	}
-	adu.PDUStart = mbapHdrSize
-	adu.PDUEnd = 0
 	err = ls.CheckLen(buf[mbapHdrSize:])
 	if err != nil {
 		return

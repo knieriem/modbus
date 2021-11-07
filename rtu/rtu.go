@@ -96,26 +96,32 @@ func (m *Conn) MsgWriter() (w io.Writer) {
 
 var localEchoSetByEnv = os.Getenv("MODBUS_RTU_LOCAL_ECHO") == "1"
 
-func (m *Conn) Send() (buf []byte, err error) {
+func (m *Conn) Send() (adu modbus.ADU, err error) {
 	b := m.buf
 	b.Write(m.h.Sum(nil))
 
+	adu.PDUStart = 1
+	adu.PDUEnd = -2
+	adu.Bytes = b.Bytes()
 	err = m.readMgr.Start()
 	if err != nil {
-		return
+		return adu, err
 	}
-	buf = b.Bytes()
 	_, err = b.WriteTo(m.conn)
 	if err != nil {
 		m.readMgr.Cancel()
 	}
 	if m.LocalEcho || localEchoSetByEnv {
-		m.readMgr.echo = buf
+		m.readMgr.echo = adu.Bytes
 	}
 	if port, ok := m.conn.(serport.Port); ok {
 		err = port.Drain()
 	}
-	return
+	return adu, err
+}
+
+func (m *Conn) EnableReceive() error {
+	return m.readMgr.Start()
 }
 
 func (m *Conn) Receive(ctx context.Context, tMax time.Duration, ls *modbus.ExpectedRespLenSpec) (adu modbus.ADU, err error) {
@@ -129,6 +135,8 @@ func (m *Conn) Receive(ctx context.Context, tMax time.Duration, ls *modbus.Expec
 	m.h.Reset()
 	m.expectedLenSpec = ls
 	adu.Bytes, err = m.readMgr.Read(ctx, tMax, m.InterframeTimeout)
+	adu.PDUStart = 1
+	adu.PDUEnd = -2
 	if err != nil {
 		return
 	}
@@ -137,8 +145,6 @@ func (m *Conn) Receive(ctx context.Context, tMax time.Duration, ls *modbus.Expec
 		err = modbus.NewInvalidLen(modbus.MsgContextADU, n, 4)
 		return
 	}
-	adu.PDUStart = 1
-	adu.PDUEnd = -2
 	err = ls.CheckLen(adu.Bytes[1 : n-2])
 	if err != nil {
 		return
