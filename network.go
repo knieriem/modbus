@@ -109,6 +109,44 @@ type Network struct {
 	Tracef          TraceFunc
 	ResponseTimeout time.Duration
 	TurnaroundDelay time.Duration
+
+	longTurnaroundTime longTurnaroundStatus
+}
+
+type longTurnaroundStatus struct {
+	// tPrev is the time of the last request that was called
+	// with the LimitLongTurnaroundTimes request option
+	// and that showed a long enough turnaround time.
+	tPrev time.Time
+
+	// addr is the device addr of that request.
+	addr uint8
+
+	// rejectedOtherAddrs tells whether requests to device
+	// addresses other than addr have been rejected since tPrev;
+	// this allows to prefer these other devices at the time
+	// of the next request with option LimitLongTurnaroundTimes.
+	rejectedOtherAddrs bool
+}
+
+func (lt *longTurnaroundStatus) record(tPrev time.Time, addr uint8) {
+	lt.tPrev = tPrev
+	lt.addr = addr
+	lt.rejectedOtherAddrs = false
+
+}
+
+func (lt *longTurnaroundStatus) allowed(addr uint8, minElapsed time.Duration) bool {
+	if time.Now().Sub(lt.tPrev) < minElapsed {
+		if addr != lt.addr {
+			lt.rejectedOtherAddrs = true
+		}
+		return false
+	} else if lt.addr == addr && lt.rejectedOtherAddrs {
+		lt.addr = 0
+		return false
+	}
+	return true
 }
 
 type TraceFunc func(format string, a ...interface{})
@@ -137,6 +175,7 @@ var ErrUnexpectedEcho = Error("unexpected echo")
 var ErrInvalidEchoLen = Error("invalid local echo length")
 var ErrMaxReqLenExceeded = Error("max request length exceeded")
 var ErrCRC = Error("CRC error")
+var ErrRejected = Error("request rejected")
 
 type MismatchError struct {
 	Req     MsgHdr
@@ -235,6 +274,10 @@ type reqOptions struct {
 	retryFunc              RetryFunc
 	expectedLenSpec        *ExpectedRespLenSpec
 	tracef                 func(format string, a ...interface{})
+	longTurnaroundTime     struct {
+		minElapsedSincePrev time.Duration
+		minDuration         time.Duration
+	}
 }
 
 func WithContext(ctx context.Context) ReqOption {
@@ -350,6 +393,19 @@ func WithTraceFunc(f TraceFunc) ReqOption {
 	}
 }
 
+// LimitLongTurnaroundTimes ensures that a request is rejected
+// if it is initiated too early after a previous request,
+// that took too long (e.g. several seconds) and thus blocked
+// the bus. Its main purpose is to avoid that devices on a slow
+// link are delaying requests to other devices too much.
+//
+func LimitLongTurnaroundTimes(minElapsedSincePrev, minTurnaround time.Duration) ReqOption {
+	return func(r *reqOptions) {
+		r.longTurnaroundTime.minElapsedSincePrev = minElapsedSincePrev
+		r.longTurnaroundTime.minDuration = minTurnaround
+	}
+}
+
 func (netw *Network) Request(addr, fn uint8, req Request, resp Response, opts ...ReqOption) (err error) {
 	var rqo reqOptions
 	rqo.ctx = context.TODO()
@@ -362,6 +418,11 @@ func (netw *Network) Request(addr, fn uint8, req Request, resp Response, opts ..
 		o(&rqo)
 	}
 
+	if minElapsed := rqo.longTurnaroundTime.minElapsedSincePrev; minElapsed != 0 {
+		if !netw.longTurnaroundTime.allowed(addr, minElapsed) {
+			return ErrRejected
+		}
+	}
 
 	nRetries := 0
 retry:
@@ -391,8 +452,8 @@ retry:
 		return
 	}
 
+	t0 := time.Now()
 	if rqo.waitFull != 0 {
-		t0 := time.Now()
 		defer func() {
 			remain := t0.Add(rqo.waitFull).Sub(time.Now())
 			if remain > 0 {
@@ -402,6 +463,14 @@ retry:
 	}
 
 	adu, err := netw.conn.Receive(rqo.ctx, rqo.timeout, rqo.expectedLenSpec)
+
+	tResp := time.Now()
+	tt := tResp.Sub(t0)
+
+	respDelayed := false
+	if min := rqo.longTurnaroundTime.minDuration; min != 0 && min <= tt {
+		respDelayed = true
+	}
 
 	buf := adu.Bytes
 	respAddr, pdu := adu.AddrPDU()
@@ -428,6 +497,9 @@ retry:
 		if errors.Is(err, context.Canceled) {
 			return err
 		}
+		if respDelayed && errors.Is(err, ErrTimeout) {
+			netw.longTurnaroundTime.record(tResp, addr)
+		}
 		if rqo.canRetry(err, nRetries) {
 			nRetries++
 			goto retry
@@ -450,6 +522,11 @@ retry:
 			return
 		}
 		err = Exception(pdu[1])
+		if respDelayed {
+			if err == XGwPathUnavail || err == XGwTargetFailedToRespond {
+				netw.longTurnaroundTime.record(tResp, addr)
+			}
+		}
 		if rqo.canRetry(err, nRetries) {
 			nRetries++
 			goto retry
