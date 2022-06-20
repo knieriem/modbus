@@ -1,5 +1,3 @@
-github.com/h2so5/half v0.0.0-20170106005425-c705bde19bd0 h1:IajCRo241MK+T3L0fm2GhlBJp6xgGfy8rhxkeLoZs8Q=
-github.com/h2so5/half v0.0.0-20170106005425-c705bde19bd0/go.mod h1:ZAKroyK9OrmtO2/UJY0vAPRPATpjJItVSF0o6cqYTt8=
 github.com/knieriem/g v0.1.0/go.mod h1:Cxrkopw+HrVRIxTQzwKvLf0zImHa1q6L0RUElAh3a9k=
 github.com/knieriem/g v0.4.0 h1:Ezf2fUkMMEYeh7Hk2FdzV3VzEbOeuRlWSUWPf9Vrocs=
 github.com/knieriem/g v0.4.0/go.mod h1:/Jo8tnfB2j/yQQCwkBbN0sZ2ekRtc9cXYiF4mAbiLAc=
@@ -13,6 +11,8 @@ github.com/knieriem/text v0.1.1 h1:soHAOGl9ImS4GnGyXz1ysOflZgRo5mDmqM5av9RxY5Y=
 github.com/knieriem/text v0.1.1/go.mod h1:4h57Q3GvItfA7H/EW3wd9i83WEF7CcS0RUesQKw/vu0=
 github.com/knieriem/vfsutil v0.1.0/go.mod h1:vDmi2mPOtfrWx5UDrPmaErqvaMyTdBnfvPqqIxjP9ik=
 github.com/lionkov/go9p v0.0.0-20180620135904-0a603dd6808a/go.mod h1:Nbrxd4FljESFB/bUvzT5xm1VNO2VfzMKSIv4L++4J4U=
+github.com/x448/float16 v0.8.4 h1:qLwI1I70+NjRFUR3zs1JPUCgaCXSh3SW62uAKT1mSBM=
+github.com/x448/float16 v0.8.4/go.mod h1:14CWIYCyZA/cWjXOioeEpHeN/83MdbZDRQHoFcYsOfg=
 golang.org/x/sys v0.0.0-20210514084401-e8d321eab015 h1:hZR0X1kPW+nwyJ9xRxqZk1vx5RUObAPBdKVvXPDUH/E=
 golang.org/x/sys v0.0.0-20210514084401-e8d321eab015/go.mod h1:oPkhp1MJrh7nUepCBck5+mAzfO9JrbApNNgaTdGDITg=
 golang.org/x/tools v0.0.0-20180727195141-8cc4e8a6f484/go.mod h1:n7NCudcB/nEzxVGmLbDWY5pfWTLqBcC2KZ6jyYvM4mQ=

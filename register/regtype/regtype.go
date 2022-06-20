@@ -13,7 +13,7 @@ import (
 	"github.com/knieriem/modbus"
 	"github.com/knieriem/modbus/register"
 
-	"github.com/h2so5/half"
+	"github.com/x448/float16"
 )
 
 type ModifierFunc func(BaseValue) BaseValue
@@ -336,7 +336,7 @@ func (f Float16) Value() interface{} {
 }
 
 func (f Float16) float32() float32 {
-	return half.Float16(f).Float32()
+	return float16.Frombits(uint16(f)).Float32()
 }
 
 func makeFloat16(n int) interface{} {
@@ -348,7 +348,7 @@ func newFloat16(s string) (v baseValue, err error) {
 	if err != nil {
 		return
 	}
-	return Float16(half.NewFloat16(float32(f))), nil
+	return Float16(float16.Fromfloat32(float32(f))), nil
 }
 
 type Float32 float32
