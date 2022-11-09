@@ -9,13 +9,14 @@ import (
 	"time"
 
 	"github.com/knieriem/modbus"
-	"github.com/knieriem/modbus/rtu"
+	"github.com/knieriem/serframe"
 )
 
 const (
 	hdrSize     = 6 // Size of the MBAP header, without the Unit field
 	mbapHdrSize = hdrSize + 1
 	pduSize     = 256 - 2 - 1
+	aduSizeMax  = mbapHdrSize + pduSize
 
 	hdrPosTxnID   = 0
 	hdrPosProtoID = 2
@@ -32,12 +33,15 @@ var (
 )
 
 type Conn struct {
-	conn          net.Conn
-	buf           *bytes.Buffer
+	conn net.Conn
+	buf  struct {
+		w *bytes.Buffer
+		r []byte
+	}
 	transactionID uint16
 
-	readMgr *rtu.ReadMgr
-	ExitC   chan error
+	readMgr *serframe.Stream
+	ExitC   <-chan error
 
 	OnReceiveError func(*Conn, error)
 }
@@ -46,28 +50,24 @@ func NewNetConn(conn net.Conn) (m *Conn) {
 	m = new(Conn)
 	m.conn = conn
 
-	m.buf = new(bytes.Buffer)
+	m.buf.w = new(bytes.Buffer)
+	m.buf.r = make([]byte, aduSizeMax)
 
-	var buf = make([]byte, 4096)
-	rf := func() ([]byte, error) {
-		n, err := conn.Read(buf)
-		if err == nil {
-			return buf[:n], nil
-		}
-		return nil, err
-	}
-	m.ExitC = make(chan error, 1)
-	m.readMgr = rtu.NewReadMgr(rf, m.ExitC)
-	m.readMgr.MsgComplete = func(buf []byte) (complete bool) {
-		if len(buf) < hdrSize {
-			return
-		}
-		length := bo.Uint16(buf[hdrPosLen:])
-		if len(buf) >= int(length+hdrSize) {
-			complete = true
-		}
-		return
-	}
+	m.readMgr = serframe.NewStream(conn,
+		serframe.WithReceptionOptions(
+			serframe.WithFrameInterceptor(func(buf, newPart []byte) (serframe.FrameStatus, error) {
+				if len(buf) < hdrSize {
+					return serframe.None, nil
+				}
+				length := bo.Uint16(buf[hdrPosLen:])
+				if len(buf) >= int(length+hdrSize) {
+					return serframe.CompleteSkipTimeout, nil
+				}
+				return serframe.None, nil
+			}),
+		),
+	)
+	m.ExitC = m.readMgr.ExitC
 	return
 }
 
@@ -80,14 +80,14 @@ func (m *Conn) Device() interface{} {
 }
 
 func (m *Conn) MsgWriter() (w io.Writer) {
-	b := m.buf
+	b := m.buf.w
 	b.Reset()
 	b.Write([]byte{0, 0, 0, 0, 0, 0})
 	return b
 }
 
 func (m *Conn) Send() (adu modbus.ADU, err error) {
-	b := m.buf
+	b := m.buf.w
 	buf := b.Bytes()
 	m.transactionID++
 	bo.PutUint16(buf[hdrPosTxnID:], m.transactionID)
@@ -95,13 +95,13 @@ func (m *Conn) Send() (adu modbus.ADU, err error) {
 
 	adu.PDUStart = mbapHdrSize
 	adu.Bytes = buf
-	err = m.readMgr.Start()
+	err = m.readMgr.StartReception(m.buf.r)
 	if err != nil {
 		return adu, err
 	}
 	_, err = b.WriteTo(m.conn)
 	if err != nil {
-		m.readMgr.Cancel()
+		m.readMgr.CancelReception()
 	}
 	return adu, err
 }
@@ -117,7 +117,10 @@ func (m *Conn) Receive(ctx context.Context, tMax time.Duration, ls *modbus.Expec
 
 retry:
 	adu.PDUStart = mbapHdrSize
-	adu.Bytes, err = m.readMgr.Read(ctx, tMax, tMax)
+	adu.Bytes, err = m.readMgr.ReadFrame(ctx,
+		serframe.WithInitialTimeout(tMax),
+		serframe.WithInterByteTimeout(tMax),
+	)
 	if err != nil {
 		return
 	}
@@ -143,7 +146,7 @@ retry:
 	tID := bo.Uint16(buf[hdrPosTxnID:])
 	switch {
 	case tID < m.transactionID:
-		err = m.readMgr.Start()
+		err = m.readMgr.StartReception(m.buf.r)
 		if err != nil {
 			return
 		}

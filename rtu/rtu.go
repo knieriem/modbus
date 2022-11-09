@@ -10,15 +10,19 @@ import (
 	"github.com/knieriem/hash"
 	"github.com/knieriem/hash/crc16"
 	"github.com/knieriem/modbus"
+	"github.com/knieriem/serframe"
 	"github.com/knieriem/serport"
 )
 
 type Conn struct {
 	conn io.ReadWriter
-	buf  *bytes.Buffer
+	buf  struct {
+		w *bytes.Buffer
+		r []byte
+	}
 
-	readMgr *ReadMgr
-	ExitC   chan error
+	readMgr *serframe.Stream
+	ExitC   <-chan error
 
 	h Hash
 
@@ -33,33 +37,34 @@ func NewNetConn(conn io.ReadWriter) (m *Conn) {
 	m = new(Conn)
 	m.conn = conn
 
-	m.buf = new(bytes.Buffer)
+	m.buf.w = new(bytes.Buffer)
+	// For the read buffer, reserve space for an optional echoed request frame,
+	// and the response frame
+	m.buf.r = make([]byte, 2*256)
 
-	var buf = make([]byte, 4096)
-	rf := func() ([]byte, error) {
-		n, err := conn.Read(buf)
-		if err == nil {
-			return buf[:n], nil
-		}
-		return nil, err
-	}
 	m.ExitC = make(chan error, 1)
 	m.h = NewHash()
-	m.readMgr = NewReadMgr(rf, m.ExitC)
-	m.readMgr.CheckBytes = func(bnew []byte, msg []byte) bool {
-		m.h.Write(bnew)
-		if m.h.Sum16() != 0 {
-			return false
-		}
-		if len(msg) < 4 {
-			return false
-		}
-		if m.expectedLenSpec.CheckLen(msg[1:len(msg)-2]) != nil {
-			return false
-		}
-		return true
-	}
 
+	m.readMgr = serframe.NewStream(conn,
+		serframe.WithInternalBufSize(512),
+		serframe.WithReceptionOptions(
+			serframe.WithInterByteTimeout(1750*time.Microsecond),
+			serframe.WithFrameInterceptor(func(msg, bnew []byte) (serframe.FrameStatus, error) {
+				m.h.Write(bnew)
+				if m.h.Sum16() != 0 {
+					return serframe.None, nil
+				}
+				if len(msg) < 4 {
+					return serframe.None, nil
+				}
+				if m.expectedLenSpec.CheckLen(msg[1:len(msg)-2]) != nil {
+					return serframe.None, nil
+				}
+				return serframe.Complete, nil
+			}),
+		),
+	)
+	m.ExitC = m.readMgr.ExitC
 	m.InterframeTimeout = 50 * time.Millisecond
 	return
 }
@@ -74,11 +79,6 @@ func NewHash() Hash {
 	return Hash{Hash16: crc16.New(crcTab)}
 }
 
-func (h *Hash) Sum(in []byte) []byte {
-	s := h.Sum16()
-	return append(in, byte(s&0xFF), byte(s>>8))
-}
-
 func (m *Conn) Name() string {
 	return "rtu"
 }
@@ -88,7 +88,7 @@ func (m *Conn) Device() interface{} {
 }
 
 func (m *Conn) MsgWriter() (w io.Writer) {
-	b := m.buf
+	b := m.buf.w
 	b.Reset()
 	m.h.Reset()
 	return io.MultiWriter(b, m.h)
@@ -97,22 +97,25 @@ func (m *Conn) MsgWriter() (w io.Writer) {
 var localEchoSetByEnv = os.Getenv("MODBUS_RTU_LOCAL_ECHO") == "1"
 
 func (m *Conn) Send() (adu modbus.ADU, err error) {
-	b := m.buf
+	b := m.buf.w
 	b.Write(m.h.Sum(nil))
 
 	adu.PDUStart = 1
 	adu.PDUEnd = -2
 	adu.Bytes = b.Bytes()
-	err = m.readMgr.Start()
+
+	var opts []serframe.ReceptionOption
+	if m.LocalEcho || localEchoSetByEnv {
+		opts = append(opts, serframe.WithLocalEcho(adu.Bytes))
+	}
+	err = m.readMgr.StartReception(m.buf.r, opts...)
 	if err != nil {
 		return adu, err
 	}
+
 	_, err = b.WriteTo(m.conn)
 	if err != nil {
-		m.readMgr.Cancel()
-	}
-	if m.LocalEcho || localEchoSetByEnv {
-		m.readMgr.echo = adu.Bytes
+		m.readMgr.CancelReception()
 	}
 	if port, ok := m.conn.(serport.Port); ok {
 		err = port.Drain()
@@ -121,7 +124,7 @@ func (m *Conn) Send() (adu modbus.ADU, err error) {
 }
 
 func (m *Conn) EnableReceive() error {
-	return m.readMgr.Start()
+	return m.readMgr.StartReception(m.buf.r)
 }
 
 func (m *Conn) Receive(ctx context.Context, tMax time.Duration, ls *modbus.ExpectedRespLenSpec) (adu modbus.ADU, err error) {
@@ -134,10 +137,14 @@ func (m *Conn) Receive(ctx context.Context, tMax time.Duration, ls *modbus.Expec
 	}
 	m.h.Reset()
 	m.expectedLenSpec = ls
-	adu.Bytes, err = m.readMgr.Read(ctx, tMax, m.InterframeTimeout)
+	adu.Bytes, err = m.readMgr.ReadFrame(ctx,
+		serframe.WithInitialTimeout(tMax),
+		serframe.WithExtInterByteTimeout(m.InterframeTimeout),
+	)
 	adu.PDUStart = 1
 	adu.PDUEnd = -2
 	if err != nil {
+		err = mapErrors(err)
 		return
 	}
 	n := len(adu.Bytes)
@@ -169,6 +176,21 @@ func MaybeTruncatedMsg(err error) bool {
 	return !e.TooLong()
 }
 
-func (m *Conn) ReadMgr() *ReadMgr {
+func (m *Conn) Stream() *serframe.Stream {
 	return m.readMgr
+}
+
+var errorsMap = map[error]error{
+	serframe.ErrTimeout:        modbus.ErrTimeout,
+	serframe.ErrEchoMismatch:   modbus.ErrEchoMismatch,
+	serframe.ErrInvalidEchoLen: modbus.ErrInvalidEchoLen,
+	serframe.ErrOverflow:       modbus.ErrMaxRespLenExceeded,
+}
+
+func mapErrors(err error) error {
+	modErr, ok := errorsMap[err]
+	if !ok {
+		return err
+	}
+	return modErr
 }

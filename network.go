@@ -215,6 +215,7 @@ var ErrEchoMismatch = Error("local echo mismatch")
 var ErrUnexpectedEcho = Error("unexpected echo")
 var ErrInvalidEchoLen = Error("invalid local echo length")
 var ErrMaxReqLenExceeded = Error("max request length exceeded")
+var ErrMaxRespLenExceeded = Error("max response length exceeded")
 var ErrCRC = Error("CRC error")
 var ErrRejected = Error("request rejected")
 
