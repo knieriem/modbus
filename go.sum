@@ -1,8 +1,10 @@
+github.com/knieriem/crcutil v0.1.0-alpha2 h1:nLTg4K50IACB66wdZ8CrOBB20cXJ7z756aGOs9B8kbM=
+github.com/knieriem/crcutil v0.1.0-alpha2/go.mod h1:a1dvLkw3+Jq5fk0FkTdFkvcyZJP2xXA0+ielkokdfLQ=
 github.com/knieriem/g v0.1.0/go.mod h1:Cxrkopw+HrVRIxTQzwKvLf0zImHa1q6L0RUElAh3a9k=
 github.com/knieriem/g v0.4.0 h1:Ezf2fUkMMEYeh7Hk2FdzV3VzEbOeuRlWSUWPf9Vrocs=
 github.com/knieriem/g v0.4.0/go.mod h1:/Jo8tnfB2j/yQQCwkBbN0sZ2ekRtc9cXYiF4mAbiLAc=
-github.com/knieriem/hash v1.0.0 h1:QBFlXIyj4Wc4KYC6Ym8Ez0MjL9tQp1jy4y4AOZjqs40=
-github.com/knieriem/hash v1.0.0/go.mod h1:PCgMrbb9L1RJJoG6UGLsQWDlbirlxZlw/0aNoKwS3gw=
+github.com/knieriem/hash v1.1.0-alpha1 h1:G3dp5XXXeAeOhhx67PRdgd+VUlMrMMS/PoIB6SE/0mA=
+github.com/knieriem/hash v1.1.0-alpha1/go.mod h1:1Qz5JUcYx5RFS7xagkpKkE4x6rljvtj40qnKnVILZj4=
 github.com/knieriem/io v0.1.0 h1:Wsb4U4j7zuXOgNzMjqxT7+qRJiEIw8Jg4XkXuisKzIc=
 github.com/knieriem/io v0.1.0/go.mod h1:IlKZPX4lndNFPrEartjXZUhS/XDgekg7Llmtp7bXMzg=
 github.com/knieriem/serframe v0.1.0-alpha2 h1:bdna5Vg9XJU50LCS6/ODFmYBGuddd9lJoeSWXnERzg0=
