@@ -17,11 +17,15 @@ func portInfo(name string) string {
 func openPort(cf *netconn.Conf) (c io.ReadWriteCloser, portName string, err error) {
 	inictl := strings.Join(cf.Options, " ")
 
-	port, portName, err := serport.Choose(cf.Device, inictl)
-	if err == nil {
-		c = port
+	portName, err = serport.Choose(cf.Device)
+	if err != nil {
+		return nil, "", err
 	}
-	return
+	port, err := serport.Open(portName, serport.MergeCtlCmds(serport.StdConf, inictl))
+	if err != nil {
+		return nil, portName, err
+	}
+	return port, portName, nil
 }
 
 var serialPorts = netconn.InterfaceGroup{
