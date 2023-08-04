@@ -144,7 +144,7 @@ func (m *Conn) Receive(ctx context.Context, tMax time.Duration, ls *modbus.Expec
 	adu.PDUStart = 1
 	adu.PDUEnd = -2
 	if err != nil {
-		err = mapErrors(err)
+		err = ConvertSerframeError(err)
 		return
 	}
 	n := len(adu.Bytes)
@@ -187,7 +187,11 @@ var errorsMap = map[error]error{
 	serframe.ErrOverflow:       modbus.ErrMaxRespLenExceeded,
 }
 
-func mapErrors(err error) error {
+// ConvertSerframeError converts errors from the serframe package
+// to their Modbus equivalents.
+// This function is exported as a convenience for other packages that
+// implement their own NetConn based on the serframe package.
+func ConvertSerframeError(err error) error {
 	modErr, ok := errorsMap[err]
 	if !ok {
 		return err
