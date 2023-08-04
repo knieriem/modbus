@@ -440,7 +440,6 @@ func WithTraceFunc(f TraceFunc) ReqOption {
 // that took too long (e.g. several seconds) and thus blocked
 // the bus. Its main purpose is to avoid that devices on a slow
 // link are delaying requests to other devices too much.
-//
 func LimitLongTurnaroundTimes(minElapsedSincePrev, minTurnaround time.Duration) ReqOption {
 	return func(r *reqOptions) {
 		r.longTurnaroundTime.minElapsedSincePrev = minElapsedSincePrev
