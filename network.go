@@ -75,7 +75,7 @@ type ADU struct {
 	// relative to the start of an ADU
 	PDUStart int
 
-	// PDUStart contains the end index of a PDU,
+	// PDUEnd contains the end index of a PDU,
 	// relative to the end of an ADU.
 	PDUEnd int
 }
