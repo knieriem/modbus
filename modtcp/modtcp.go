@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/knieriem/modbus"
+	"github.com/knieriem/modbus/rtu"
 	"github.com/knieriem/serframe"
 )
 
@@ -122,6 +123,7 @@ retry:
 		serframe.WithInterByteTimeout(tMax),
 	)
 	if err != nil {
+		err = rtu.ConvertSerframeError(err)
 		return
 	}
 	buf := adu.Bytes
